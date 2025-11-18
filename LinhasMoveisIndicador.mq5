@@ -4,7 +4,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Indicador Personalizado"
 #property link      ""
-#property version   "3.10"
+#property version   "3.20"
 #property indicator_chart_window
 #property indicator_plots 0
 
@@ -54,6 +54,7 @@ bool monitorandoAntesFibo = false; // Monitorando antes de tocar na Fibo 61.8
 bool tocouFibo618 = false;      // Se já tocou na linha Fibo 61.8
 int barraInicioMonitoramento = -1; // Índice da barra onde iniciou o monitoramento (linha azul)
 int barraInicio = -1;           // Índice da barra onde iniciou a análise
+datetime tempoInicioQuadrado = 0; // Tempo de início do quadrado (primeira vez que tocou na Fibo)
 double fundoAtual = 0;          // Fundo atual do quadrado
 bool rompeuTopo = false;        // Se já rompeu o topo do quadrado
 bool linhasTravadas = false;    // Controla se as linhas estão travadas
@@ -63,7 +64,7 @@ bool linhasTravadas = false;    // Controla se as linhas estão travadas
 //+------------------------------------------------------------------+
 int OnInit()
 {
-   Print("Iniciando indicador LinhasMoveisIndicador v3.10...");
+   Print("Iniciando indicador LinhasMoveisIndicador v3.20...");
 
    // Obtém o preço máximo e mínimo visível no gráfico
    double precoMaximo = ChartGetDouble(0, CHART_PRICE_MAX, 0);
@@ -128,6 +129,7 @@ int OnInit()
    monitorandoAntesFibo = false;
    tocouFibo618 = false;
    barraInicioMonitoramento = -1;
+   tempoInicioQuadrado = 0;
    rompeuTopo = false;
    linhasTravadas = false;
 
@@ -518,16 +520,18 @@ void CriarQuadradoAnalise(datetime tempoInicio, double precoBase, int larguraVel
    if(ObjectFind(0, nomeQuadradoAnalise) >= 0)
       ObjectDelete(0, nomeQuadradoAnalise);
 
-   // Calcula o tempo final (larguraVelas para frente)
+   // Calcula o tempo final - SEMPRE até a barra atual + projeção futura
    int indiceInicio = iBarShift(_Symbol, _Period, tempoInicio);
-   int indiceFim = indiceInicio - larguraVelas;
-   if(indiceFim < 0) indiceFim = 0;
 
-   datetime tempoFim = iTime(_Symbol, _Period, indiceFim);
+   // O retângulo vai desde a barra de início até a barra atual (0)
+   // Adiciona uma projeção de 20 barras para o futuro para ficar visível
+   datetime tempoFim = iTime(_Symbol, _Period, 0) + (PeriodSeconds(_Period) * 20);
 
    // Altura do quadrado em pontos
    double alturaEmPreco = 400 * _Point;
    double precoTopo = precoBase + alturaEmPreco;
+
+   Print("Criando quadrado - Base: ", precoBase, " Topo: ", precoTopo, " Tempo início: ", TimeToString(tempoInicio), " Tempo fim: ", TimeToString(tempoFim));
 
    // Cria o retângulo
    if(!ObjectCreate(0, nomeQuadradoAnalise, OBJ_RECTANGLE, 0, tempoInicio, precoBase, tempoFim, precoTopo))
@@ -539,13 +543,14 @@ void CriarQuadradoAnalise(datetime tempoInicio, double precoBase, int larguraVel
    // Define propriedades do quadrado
    ObjectSetInteger(0, nomeQuadradoAnalise, OBJPROP_COLOR, clrGreen);
    ObjectSetInteger(0, nomeQuadradoAnalise, OBJPROP_STYLE, STYLE_SOLID);
-   ObjectSetInteger(0, nomeQuadradoAnalise, OBJPROP_WIDTH, 2);
+   ObjectSetInteger(0, nomeQuadradoAnalise, OBJPROP_WIDTH, 3);
    ObjectSetInteger(0, nomeQuadradoAnalise, OBJPROP_BACK, false);
    ObjectSetInteger(0, nomeQuadradoAnalise, OBJPROP_FILL, false);
    ObjectSetInteger(0, nomeQuadradoAnalise, OBJPROP_SELECTABLE, false);
    ObjectSetInteger(0, nomeQuadradoAnalise, OBJPROP_SELECTED, false);
    ObjectSetInteger(0, nomeQuadradoAnalise, OBJPROP_HIDDEN, false);
    ObjectSetInteger(0, nomeQuadradoAnalise, OBJPROP_ZORDER, 5);
+   ObjectSetInteger(0, nomeQuadradoAnalise, OBJPROP_RAY_RIGHT, true); // Estende para direita
 
    ObjectSetString(0, nomeQuadradoAnalise, OBJPROP_TEXT, "Quadrado de Análise - 400 pontos");
 
@@ -673,7 +678,8 @@ void AnalisarFibonacci()
             Print("QUADRADO TRAVADO no histórico! Barra: ", i, " Close: ", close_i);
 
             // Cria o quadrado travado
-            CriarQuadradoAnalise(tempoQuadrado, fundoQuadrado, 10);
+            datetime tempoInicioPrimeiroToque = iTime(_Symbol, _Period, indiceToqueFibo);
+            CriarQuadradoAnalise(tempoInicioPrimeiroToque, fundoQuadrado, 10);
 
             // Ativa flags para manter o quadrado travado
             analiseAtiva = true;
@@ -682,6 +688,7 @@ void AnalisarFibonacci()
             rompeuTopo = true;
             barraInicioMonitoramento = indiceLinhaAzul;
             barraInicio = indiceToqueFibo;
+            tempoInicioQuadrado = tempoInicioPrimeiroToque;
             fundoAtual = fundoQuadrado;
 
             ChartRedraw(0);
@@ -709,7 +716,8 @@ void AnalisarFibonacci()
    {
       // Tocou na Fibo mas ainda não rompeu - cria quadrado e continua monitorando
       Print("Tocou na Fibo mas ainda não rompeu - Criando quadrado");
-      CriarQuadradoAnalise(tempoQuadrado, fundoQuadrado, 10);
+      datetime tempoInicioPrimeiroToque = iTime(_Symbol, _Period, indiceToqueFibo);
+      CriarQuadradoAnalise(tempoInicioPrimeiroToque, fundoQuadrado, 10);
 
       analiseAtiva = true;
       monitorandoAntesFibo = false;
@@ -717,6 +725,7 @@ void AnalisarFibonacci()
       rompeuTopo = false;
       barraInicioMonitoramento = indiceLinhaAzul;
       barraInicio = indiceToqueFibo;
+      tempoInicioQuadrado = tempoInicioPrimeiroToque;
       fundoAtual = fundoQuadrado;
 
       Alert("Toque na Fibonacci 61.8% detectado! Quadrado criado e monitoramento ativo.");
@@ -805,6 +814,7 @@ int OnCalculate(const int rates_total,
 
             // Cria o quadrado inicial na primeira vez que toca
             datetime tempoToque = iTime(_Symbol, _Period, idx);
+            tempoInicioQuadrado = tempoToque; // GUARDA O TEMPO DE INÍCIO DO QUADRADO
             CriarQuadradoAnalise(tempoToque, low_i, 10);
             fundoAtual = low_i;
             barraInicio = idx;
@@ -841,6 +851,7 @@ int OnCalculate(const int rates_total,
             // Encerra o monitoramento
             analiseAtiva = false;
             tocouFibo618 = false;
+            tempoInicioQuadrado = 0;
 
             // Remove quadrado e linha limite
             if(ObjectFind(0, nomeQuadradoAnalise) >= 0)
@@ -855,8 +866,8 @@ int OnCalculate(const int rates_total,
          // Se encontrou novo fundo, atualiza o quadrado
          if(low_i < baseAtual)
          {
-            datetime tempo = iTime(_Symbol, _Period, idx);
-            CriarQuadradoAnalise(tempo, low_i, 10);
+            // USA O TEMPO DE INÍCIO ORIGINAL, NÃO O TEMPO DA BARRA ATUAL
+            CriarQuadradoAnalise(tempoInicioQuadrado, low_i, 10);
             fundoAtual = low_i;
             baseAtual = low_i; // Atualiza para próxima iteração
             Print("Fundo do quadrado atualizado em tempo real na barra ", idx, ": ", fundoAtual);
@@ -1341,6 +1352,7 @@ void TravarDestravarLinhas()
          monitorandoAntesFibo = false;
          tocouFibo618 = false;
          rompeuTopo = false;
+         tempoInicioQuadrado = 0;
 
          // Remove quadrado e linha limite
          if(ObjectFind(0, nomeQuadradoAnalise) >= 0)
@@ -1388,6 +1400,7 @@ void ResetarIndicador()
    tocouFibo618 = false;
    barraInicioMonitoramento = -1;
    barraInicio = -1;
+   tempoInicioQuadrado = 0;
    fundoAtual = 0;
    rompeuTopo = false;
    linhasTravadas = false;
