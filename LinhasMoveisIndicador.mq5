@@ -4,7 +4,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Indicador Personalizado"
 #property link      ""
-#property version   "2.30"
+#property version   "3.00"
 #property indicator_chart_window
 #property indicator_plots 0
 
@@ -37,9 +37,15 @@ string nomeLinhaFibo764 = "Fibo_764";
 string nomeBotaoAnalisar = "Botao_Analisar";
 string nomeBotaoInverterFibo = "Botao_InverterFibo";
 string nomeBotaoReset = "Botao_Reset";
+string nomeBotaoTravar = "Botao_Travar";
 
-// Nome do quadrado de análise
+// Nome do quadrado de análise e linha do limite
 string nomeQuadradoAnalise = "Quadrado_Analise";
+string nomeLinhaLimite20 = "Linha_Limite_20";
+
+// Nomes das tabelas de status
+string nomeLabelStatusAnalise = "Label_StatusAnalise";
+string nomeLabelStatusTravamento = "Label_StatusTravamento";
 
 // Variáveis de controle da análise
 bool fiboInvertida = false;     // Controla se a Fibonacci está invertida
@@ -50,13 +56,14 @@ int barraInicioMonitoramento = -1; // Índice da barra onde iniciou o monitorame
 int barraInicio = -1;           // Índice da barra onde iniciou a análise
 double fundoAtual = 0;          // Fundo atual do quadrado
 bool rompeuTopo = false;        // Se já rompeu o topo do quadrado
+bool linhasTravadas = false;    // Controla se as linhas estão travadas
 
 //+------------------------------------------------------------------+
 //| Função de inicialização do indicador                             |
 //+------------------------------------------------------------------+
 int OnInit()
 {
-   Print("Iniciando indicador LinhasMoveisIndicador v2.30...");
+   Print("Iniciando indicador LinhasMoveisIndicador v3.00...");
 
    // Obtém o preço máximo e mínimo visível no gráfico
    double precoMaximo = ChartGetDouble(0, CHART_PRICE_MAX, 0);
@@ -110,6 +117,10 @@ int OnInit()
    CriarBotaoAnalisar();
    CriarBotaoInverterFibo();
    CriarBotaoReset();
+   CriarBotaoTravar();
+
+   // Cria as tabelas de status
+   CriarTabelaStatus();
 
    // Inicializa variáveis
    fiboInvertida = false;
@@ -118,6 +129,7 @@ int OnInit()
    tocouFibo618 = false;
    barraInicioMonitoramento = -1;
    rompeuTopo = false;
+   linhasTravadas = false;
 
    // Força atualização do gráfico
    ChartRedraw(0);
@@ -460,6 +472,44 @@ void AtualizarLinhasFibonacci()
 }
 
 //+------------------------------------------------------------------+
+//| Função para criar ou atualizar a linha do limite de 20%          |
+//+------------------------------------------------------------------+
+void CriarLinhaLimite20()
+{
+   // Calcula o limite de 20%
+   double precoLinhaHorizontalSuperior = ObjectGetDouble(0, nomeLinhaHorizontalSuperior, OBJPROP_PRICE);
+   double precoLinhaHorizontalCentro = ObjectGetDouble(0, nomeLinhaHorizontalCentro, OBJPROP_PRICE);
+   double diferencaLinhas = precoLinhaHorizontalSuperior - precoLinhaHorizontalCentro;
+   double tolerancia20Porcento = diferencaLinhas * 0.20;
+   double limiteInferior = precoLinhaHorizontalCentro - tolerancia20Porcento;
+
+   // Remove linha se já existir
+   if(ObjectFind(0, nomeLinhaLimite20) >= 0)
+      ObjectDelete(0, nomeLinhaLimite20);
+
+   // Cria a linha horizontal tracejada
+   if(!ObjectCreate(0, nomeLinhaLimite20, OBJ_HLINE, 0, 0, limiteInferior))
+   {
+      Print("ERRO ao criar linha limite 20%. Erro: ", GetLastError());
+      return;
+   }
+
+   // Define propriedades da linha
+   ObjectSetInteger(0, nomeLinhaLimite20, OBJPROP_COLOR, clrBlack);
+   ObjectSetInteger(0, nomeLinhaLimite20, OBJPROP_STYLE, STYLE_DASH);  // Tracejada
+   ObjectSetInteger(0, nomeLinhaLimite20, OBJPROP_WIDTH, 2);
+   ObjectSetInteger(0, nomeLinhaLimite20, OBJPROP_BACK, false);
+   ObjectSetInteger(0, nomeLinhaLimite20, OBJPROP_SELECTABLE, false);
+   ObjectSetInteger(0, nomeLinhaLimite20, OBJPROP_SELECTED, false);
+   ObjectSetInteger(0, nomeLinhaLimite20, OBJPROP_HIDDEN, false);
+   ObjectSetInteger(0, nomeLinhaLimite20, OBJPROP_ZORDER, 0);
+
+   ObjectSetString(0, nomeLinhaLimite20, OBJPROP_TEXT, "Limite 20% - Fundo");
+
+   Print("Linha limite 20% criada no preço: ", limiteInferior);
+}
+
+//+------------------------------------------------------------------+
 //| Função para criar ou atualizar o quadrado de análise             |
 //+------------------------------------------------------------------+
 void CriarQuadradoAnalise(datetime tempoInicio, double precoBase, int larguraVelas)
@@ -509,9 +559,11 @@ void AnalisarFibonacci()
 {
    Print("===== INICIANDO ANÁLISE FIBONACCI =====");
 
-   // Remove quadrado anterior se existir
+   // Remove quadrado e linha limite anteriores se existirem
    if(ObjectFind(0, nomeQuadradoAnalise) >= 0)
       ObjectDelete(0, nomeQuadradoAnalise);
+   if(ObjectFind(0, nomeLinhaLimite20) >= 0)
+      ObjectDelete(0, nomeLinhaLimite20);
 
    // Obtém os preços das linhas Fibonacci e horizontais
    double preco618 = ObjectGetDouble(0, nomeLinhaFibo618, OBJPROP_PRICE);
@@ -543,6 +595,15 @@ void AnalisarFibonacci()
    }
 
    Print("Linha azul - Tempo: ", TimeToString(tempoLinhaAzul), " | Índice: ", indiceLinhaAzul);
+
+   // VERIFICA SE O PREÇO JÁ COMEÇOU ABAIXO DA FIBO 61.8
+   double closeLinhaAzul = iClose(_Symbol, _Period, indiceLinhaAzul);
+   if(closeLinhaAzul < preco618)
+   {
+      Print("ERRO: O preço na linha azul já está ABAIXO da Fibo 61.8! Close: ", closeLinhaAzul, " | Fibo: ", preco618);
+      Alert("REPOSICIONE A FIBO: O preço na linha azul já começou abaixo da Fibonacci 61.8%");
+      return;
+   }
 
    // Calcula os limites para verificação de rompimento
    double diferencaLinhas = precoLinhaHorizontalSuperior - precoLinhaHorizontalCentro;
@@ -660,6 +721,23 @@ void AnalisarFibonacci()
 
       Alert("Toque na Fibonacci 61.8% detectado! Quadrado criado e monitoramento ativo.");
    }
+
+   // TRAVA AS LINHAS AUTOMATICAMENTE
+   if(!linhasTravadas)
+   {
+      linhasTravadas = true;
+      ObjectSetInteger(0, nomePontoSuperiorEsquerda, OBJPROP_SELECTABLE, false);
+      ObjectSetInteger(0, nomePontoCentroEsquerda, OBJPROP_SELECTABLE, false);
+      ObjectSetInteger(0, nomePontoLinhaAzul, OBJPROP_SELECTABLE, false);
+      ObjectSetString(0, nomeBotaoTravar, OBJPROP_TEXT, "Destravar");
+      Print("Linhas TRAVADAS automaticamente");
+   }
+
+   // CRIA LINHA DO LIMITE 20%
+   CriarLinhaLimite20();
+
+   // ATUALIZA TABELAS DE STATUS
+   AtualizarTabelasStatus();
 
    ChartRedraw(0);
    Print("===== ANÁLISE CONCLUÍDA =====");
@@ -807,9 +885,15 @@ void OnDeinit(const int reason)
    ObjectDelete(0, nomeBotaoAnalisar);
    ObjectDelete(0, nomeBotaoInverterFibo);
    ObjectDelete(0, nomeBotaoReset);
+   ObjectDelete(0, nomeBotaoTravar);
 
-   // Remove quadrado de análise
+   // Remove quadrado de análise e linha limite
    ObjectDelete(0, nomeQuadradoAnalise);
+   ObjectDelete(0, nomeLinhaLimite20);
+
+   // Remove labels de status
+   ObjectDelete(0, nomeLabelStatusAnalise);
+   ObjectDelete(0, nomeLabelStatusTravamento);
 
    // Atualiza o gráfico
    ChartRedraw(0);
@@ -849,6 +933,14 @@ void OnChartEvent(const int id,
       ObjectSetInteger(0, nomeBotaoReset, OBJPROP_STATE, false);
    }
 
+   // Detecta clique no botão Travar/Destravar
+   if(id == CHARTEVENT_OBJECT_CLICK && sparam == nomeBotaoTravar)
+   {
+      Print("Botão Travar/Destravar clicado");
+      TravarDestravarLinhas();
+      ObjectSetInteger(0, nomeBotaoTravar, OBJPROP_STATE, false);
+   }
+
    // Detecta redimensionamento do gráfico
    if(id == CHARTEVENT_CHART_CHANGE)
    {
@@ -858,6 +950,13 @@ void OnChartEvent(const int id,
    // Detecta quando um objeto é arrastado
    if(id == CHARTEVENT_OBJECT_DRAG)
    {
+      // Se as linhas estiverem travadas, não permite arrastar
+      if(linhasTravadas)
+      {
+         Print("AVISO: Linhas estão travadas! Não é possível arrastar.");
+         return;
+      }
+
       Print("Objeto arrastado: ", sparam);
 
       // Verifica qual ponto foi arrastado
@@ -888,6 +987,10 @@ void OnChartEvent(const int id,
 
       // Atualiza as linhas de Fibonacci
       AtualizarLinhasFibonacci();
+
+      // Atualiza a linha limite 20% se estiver visível
+      if(ObjectFind(0, nomeLinhaLimite20) >= 0)
+         CriarLinhaLimite20();
 
       // Atualiza o gráfico
       ChartRedraw(0);
@@ -1058,6 +1161,181 @@ void CriarBotaoReset()
 }
 
 //+------------------------------------------------------------------+
+//| Função para criar botão "Travar/Destravar"                       |
+//+------------------------------------------------------------------+
+void CriarBotaoTravar()
+{
+   // Remove botão se já existir
+   if(ObjectFind(0, nomeBotaoTravar) >= 0)
+      ObjectDelete(0, nomeBotaoTravar);
+
+   // Define tamanho do botão
+   int larguraBotao = 120;
+   int alturaBotao = 35;
+   int yPos = BotaoPosY + (alturaBotao + 5) * 3;
+
+   // Cria o botão
+   if(!ObjectCreate(0, nomeBotaoTravar, OBJ_BUTTON, 0, 0, 0))
+   {
+      Print("ERRO ao criar botão Travar. Erro: ", GetLastError());
+      return;
+   }
+
+   ObjectSetInteger(0, nomeBotaoTravar, OBJPROP_XDISTANCE, BotaoPosX);
+   ObjectSetInteger(0, nomeBotaoTravar, OBJPROP_YDISTANCE, yPos);
+   ObjectSetInteger(0, nomeBotaoTravar, OBJPROP_XSIZE, larguraBotao);
+   ObjectSetInteger(0, nomeBotaoTravar, OBJPROP_YSIZE, alturaBotao);
+   ObjectSetInteger(0, nomeBotaoTravar, OBJPROP_BGCOLOR, clrGold);
+   ObjectSetInteger(0, nomeBotaoTravar, OBJPROP_COLOR, clrBlack);
+   ObjectSetInteger(0, nomeBotaoTravar, OBJPROP_BORDER_COLOR, clrDarkGoldenrod);
+   ObjectSetInteger(0, nomeBotaoTravar, OBJPROP_CORNER, CORNER_RIGHT_UPPER);
+   ObjectSetInteger(0, nomeBotaoTravar, OBJPROP_BACK, false);
+   ObjectSetInteger(0, nomeBotaoTravar, OBJPROP_SELECTABLE, false);
+   ObjectSetInteger(0, nomeBotaoTravar, OBJPROP_SELECTED, false);
+   ObjectSetInteger(0, nomeBotaoTravar, OBJPROP_HIDDEN, false);
+   ObjectSetInteger(0, nomeBotaoTravar, OBJPROP_ZORDER, 10);
+   ObjectSetInteger(0, nomeBotaoTravar, OBJPROP_STATE, false);
+
+   ObjectSetString(0, nomeBotaoTravar, OBJPROP_TEXT, "Destravar");
+   ObjectSetString(0, nomeBotaoTravar, OBJPROP_FONT, "Arial Bold");
+   ObjectSetInteger(0, nomeBotaoTravar, OBJPROP_FONTSIZE, 11);
+
+   Print("Botão Travar/Destravar criado");
+}
+
+//+------------------------------------------------------------------+
+//| Função para criar tabelas de status                              |
+//+------------------------------------------------------------------+
+void CriarTabelaStatus()
+{
+   // === TABELA STATUS ANÁLISE ===
+   if(ObjectFind(0, nomeLabelStatusAnalise) >= 0)
+      ObjectDelete(0, nomeLabelStatusAnalise);
+
+   if(!ObjectCreate(0, nomeLabelStatusAnalise, OBJ_LABEL, 0, 0, 0))
+   {
+      Print("ERRO ao criar label status análise. Erro: ", GetLastError());
+      return;
+   }
+
+   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_CORNER, CORNER_RIGHT_UPPER);
+   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_XDISTANCE, BotaoPosX + 130);
+   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_YDISTANCE, BotaoPosY);
+   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_COLOR, clrWhite);
+   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_FONTSIZE, 10);
+   ObjectSetString(0, nomeLabelStatusAnalise, OBJPROP_FONT, "Arial Bold");
+   ObjectSetString(0, nomeLabelStatusAnalise, OBJPROP_TEXT, "Análise: INATIVA");
+   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_BACK, true);
+   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_BGCOLOR, clrDarkRed);
+   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_BORDER_TYPE, BORDER_FLAT);
+
+   // === TABELA STATUS TRAVAMENTO ===
+   if(ObjectFind(0, nomeLabelStatusTravamento) >= 0)
+      ObjectDelete(0, nomeLabelStatusTravamento);
+
+   if(!ObjectCreate(0, nomeLabelStatusTravamento, OBJ_LABEL, 0, 0, 0))
+   {
+      Print("ERRO ao criar label status travamento. Erro: ", GetLastError());
+      return;
+   }
+
+   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_CORNER, CORNER_RIGHT_UPPER);
+   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_XDISTANCE, BotaoPosX + 130);
+   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_YDISTANCE, BotaoPosY + 25);
+   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_COLOR, clrWhite);
+   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_FONTSIZE, 10);
+   ObjectSetString(0, nomeLabelStatusTravamento, OBJPROP_FONT, "Arial Bold");
+   ObjectSetString(0, nomeLabelStatusTravamento, OBJPROP_TEXT, "Linhas: DESTRAVADAS");
+   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_BACK, true);
+   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_BGCOLOR, clrGreen);
+   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_BORDER_TYPE, BORDER_FLAT);
+
+   Print("Tabelas de status criadas");
+}
+
+//+------------------------------------------------------------------+
+//| Função para atualizar tabelas de status                          |
+//+------------------------------------------------------------------+
+void AtualizarTabelasStatus()
+{
+   // Atualiza status da análise
+   if(analiseAtiva)
+   {
+      ObjectSetString(0, nomeLabelStatusAnalise, OBJPROP_TEXT, "Análise: ATIVA");
+      ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_BGCOLOR, clrDarkGreen);
+   }
+   else
+   {
+      ObjectSetString(0, nomeLabelStatusAnalise, OBJPROP_TEXT, "Análise: INATIVA");
+      ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_BGCOLOR, clrDarkRed);
+   }
+
+   // Atualiza status do travamento
+   if(linhasTravadas)
+   {
+      ObjectSetString(0, nomeLabelStatusTravamento, OBJPROP_TEXT, "Linhas: TRAVADAS");
+      ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_BGCOLOR, clrDarkRed);
+   }
+   else
+   {
+      ObjectSetString(0, nomeLabelStatusTravamento, OBJPROP_TEXT, "Linhas: DESTRAVADAS");
+      ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_BGCOLOR, clrGreen);
+   }
+
+   ChartRedraw(0);
+}
+
+//+------------------------------------------------------------------+
+//| Função para travar/destravar linhas                              |
+//+------------------------------------------------------------------+
+void TravarDestravarLinhas()
+{
+   linhasTravadas = !linhasTravadas;
+
+   // Define se os pontos podem ser selecionados
+   bool podeSelecionar = !linhasTravadas;
+
+   // Atualiza pontos de controle
+   ObjectSetInteger(0, nomePontoSuperiorEsquerda, OBJPROP_SELECTABLE, podeSelecionar);
+   ObjectSetInteger(0, nomePontoCentroEsquerda, OBJPROP_SELECTABLE, podeSelecionar);
+   ObjectSetInteger(0, nomePontoLinhaAzul, OBJPROP_SELECTABLE, podeSelecionar);
+
+   // Atualiza texto do botão
+   if(linhasTravadas)
+   {
+      ObjectSetString(0, nomeBotaoTravar, OBJPROP_TEXT, "Destravar");
+      Print("Linhas TRAVADAS");
+   }
+   else
+   {
+      ObjectSetString(0, nomeBotaoTravar, OBJPROP_TEXT, "Travar");
+      Print("Linhas DESTRAVADAS");
+
+      // Ao destravar, encerra a análise
+      if(analiseAtiva)
+      {
+         analiseAtiva = false;
+         monitorandoAntesFibo = false;
+         tocouFibo618 = false;
+         rompeuTopo = false;
+
+         // Remove quadrado e linha limite
+         if(ObjectFind(0, nomeQuadradoAnalise) >= 0)
+            ObjectDelete(0, nomeQuadradoAnalise);
+         if(ObjectFind(0, nomeLinhaLimite20) >= 0)
+            ObjectDelete(0, nomeLinhaLimite20);
+
+         Print("Análise ENCERRADA ao destravar");
+      }
+   }
+
+   // Atualiza tabelas
+   AtualizarTabelasStatus();
+
+   ChartRedraw(0);
+}
+
+//+------------------------------------------------------------------+
 //| Função para inverter Fibonacci                                   |
 //+------------------------------------------------------------------+
 void InverterFibonacci()
@@ -1089,10 +1367,13 @@ void ResetarIndicador()
    barraInicio = -1;
    fundoAtual = 0;
    rompeuTopo = false;
+   linhasTravadas = false;
 
-   // Remove o quadrado de análise
+   // Remove o quadrado de análise e linha limite
    if(ObjectFind(0, nomeQuadradoAnalise) >= 0)
       ObjectDelete(0, nomeQuadradoAnalise);
+   if(ObjectFind(0, nomeLinhaLimite20) >= 0)
+      ObjectDelete(0, nomeLinhaLimite20);
 
    // Remove o indicador atual e reinicializa
    OnDeinit(0);
