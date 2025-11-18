@@ -4,7 +4,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Indicador Personalizado"
 #property link      ""
-#property version   "2.10"
+#property version   "2.20"
 #property indicator_chart_window
 #property indicator_plots 0
 
@@ -56,7 +56,7 @@ bool rompeuTopo = false;        // Se já rompeu o topo do quadrado
 //+------------------------------------------------------------------+
 int OnInit()
 {
-   Print("Iniciando indicador LinhasMoveisIndicador v2.10...");
+   Print("Iniciando indicador LinhasMoveisIndicador v2.20...");
 
    // Obtém o preço máximo e mínimo visível no gráfico
    double precoMaximo = ChartGetDouble(0, CHART_PRICE_MAX, 0);
@@ -513,11 +513,14 @@ void AnalisarFibonacci()
    if(ObjectFind(0, nomeQuadradoAnalise) >= 0)
       ObjectDelete(0, nomeQuadradoAnalise);
 
-   // Obtém os preços das linhas Fibonacci
+   // Obtém os preços das linhas Fibonacci e horizontais
    double preco618 = ObjectGetDouble(0, nomeLinhaFibo618, OBJPROP_PRICE);
    double preco764 = ObjectGetDouble(0, nomeLinhaFibo764, OBJPROP_PRICE);
+   double precoLinhaHorizontalSuperior = ObjectGetDouble(0, nomeLinhaHorizontalSuperior, OBJPROP_PRICE);
+   double precoLinhaHorizontalCentro = ObjectGetDouble(0, nomeLinhaHorizontalCentro, OBJPROP_PRICE);
 
    Print("Preços Fibonacci - 61.8%: ", preco618, " | 76.4%: ", preco764);
+   Print("Linhas Horizontais - Superior: ", precoLinhaHorizontalSuperior, " | Centro: ", precoLinhaHorizontalCentro);
 
    // Verifica se 76.4 está abaixo de 61.8
    if(preco764 >= preco618)
@@ -541,19 +544,125 @@ void AnalisarFibonacci()
 
    Print("Linha azul - Tempo: ", TimeToString(tempoLinhaAzul), " | Índice: ", indiceLinhaAzul);
 
-   // INICIA O MONITORAMENTO CONTÍNUO desde a linha azul
-   analiseAtiva = true;
-   monitorandoAntesFibo = true;
-   tocouFibo618 = false;
-   barraInicioMonitoramento = indiceLinhaAzul;
-   rompeuTopo = false;
+   // Calcula os limites para verificação de rompimento
+   double diferencaLinhas = precoLinhaHorizontalSuperior - precoLinhaHorizontalCentro;
+   double tolerancia20Porcento = diferencaLinhas * 0.20;
+   double limiteInferior = precoLinhaHorizontalCentro - tolerancia20Porcento;
 
-   Print("Monitoramento iniciado a partir da linha azul");
-   Alert("Monitoramento ativo: Aguardando toque na Fibonacci 61.8%");
+   // ========== ANÁLISE DO HISTÓRICO DESDE A LINHA AZUL ==========
+   Print("Iniciando análise do histórico desde a linha azul...");
+
+   bool jaTocouNaFibo = false;
+   int indiceToqueFibo = -1;
+   double fundoQuadrado = 0;
+   datetime tempoQuadrado;
+
+   // Percorre o histórico desde a linha azul até o presente
+   for(int i = indiceLinhaAzul; i >= 0; i--)
+   {
+      double high_i = iHigh(_Symbol, _Period, i);
+      double low_i = iLow(_Symbol, _Period, i);
+      double close_i = iClose(_Symbol, _Period, i);
+      datetime tempo_i = iTime(_Symbol, _Period, i);
+
+      // ===== FASE 1: ANTES DE TOCAR NA FIBO =====
+      if(!jaTocouNaFibo)
+      {
+         // Verifica se fechou acima da linha superior ANTES de tocar na Fibo
+         if(close_i > precoLinhaHorizontalSuperior)
+         {
+            Print("TOPO SUPERADO antes de tocar na Fibo! Barra: ", i, " Close: ", close_i);
+            Alert("TOPO SUPERADO, REAJUSTE A FIBO");
+            return; // Encerra a análise
+         }
+
+         // Verifica se tocou na Fibo 61.8
+         if(low_i <= preco618 && high_i >= preco618)
+         {
+            Print("TOQUE NA FIBO 61.8 DETECTADO! Barra: ", i);
+            jaTocouNaFibo = true;
+            indiceToqueFibo = i;
+            fundoQuadrado = low_i;
+            tempoQuadrado = tempo_i;
+         }
+      }
+      // ===== FASE 2: APÓS TOCAR NA FIBO =====
+      else
+      {
+         // Atualiza o fundo se desceu mais
+         if(low_i < fundoQuadrado)
+         {
+            fundoQuadrado = low_i;
+            tempoQuadrado = tempo_i;
+            Print("Fundo atualizado na barra ", i, " - Novo fundo: ", fundoQuadrado);
+         }
+
+         // Verifica se fechou abaixo do limite inferior (20%)
+         if(close_i < limiteInferior)
+         {
+            Print("FUNDO SUPERADO! Barra: ", i, " Close: ", close_i, " | Limite: ", limiteInferior);
+            Alert("SUPEROU O FUNDO, REAJUSTE A FIBO");
+            return; // Encerra a análise
+         }
+
+         // Verifica se rompeu o topo do quadrado
+         double topoQuadrado = fundoQuadrado + (400 * _Point);
+         if(close_i > topoQuadrado)
+         {
+            Print("QUADRADO TRAVADO no histórico! Barra: ", i, " Close: ", close_i);
+
+            // Cria o quadrado travado
+            CriarQuadradoAnalise(tempoQuadrado, fundoQuadrado, 10);
+
+            // Ativa flags para manter o quadrado travado
+            analiseAtiva = true;
+            monitorandoAntesFibo = false;
+            tocouFibo618 = true;
+            rompeuTopo = true;
+            barraInicioMonitoramento = indiceLinhaAzul;
+            barraInicio = indiceToqueFibo;
+            fundoAtual = fundoQuadrado;
+
+            ChartRedraw(0);
+            Alert("Análise concluída: Quadrado travado (rompimento detectado no histórico)");
+            Print("===== ANÁLISE CONCLUÍDA =====");
+            return;
+         }
+      }
+   }
+
+   // ===== RESULTADO DA ANÁLISE =====
+   if(!jaTocouNaFibo)
+   {
+      // Ainda não tocou na Fibo - inicia monitoramento
+      Print("Ainda não tocou na Fibo 61.8 - Iniciando monitoramento");
+      analiseAtiva = true;
+      monitorandoAntesFibo = true;
+      tocouFibo618 = false;
+      rompeuTopo = false;
+      barraInicioMonitoramento = indiceLinhaAzul;
+
+      Alert("Monitoramento ativo: Aguardando toque na Fibonacci 61.8%");
+   }
+   else
+   {
+      // Tocou na Fibo mas ainda não rompeu - cria quadrado e continua monitorando
+      Print("Tocou na Fibo mas ainda não rompeu - Criando quadrado");
+      CriarQuadradoAnalise(tempoQuadrado, fundoQuadrado, 10);
+
+      analiseAtiva = true;
+      monitorandoAntesFibo = false;
+      tocouFibo618 = true;
+      rompeuTopo = false;
+      barraInicioMonitoramento = indiceLinhaAzul;
+      barraInicio = indiceToqueFibo;
+      fundoAtual = fundoQuadrado;
+
+      Alert("Toque na Fibonacci 61.8% detectado! Quadrado criado e monitoramento ativo.");
+   }
 
    ChartRedraw(0);
-
-   Print("===== ANÁLISE INICIADA =====");
+   Print("===== ANÁLISE CONCLUÍDA =====");
 }
 
 //+------------------------------------------------------------------+
@@ -570,8 +679,13 @@ int OnCalculate(const int rates_total,
                 const long &volume[],
                 const int &spread[])
 {
-   // Se análise não está ativa, não faz nada
-   if(!analiseAtiva) return(rates_total);
+   // Se análise não está ativa ou quadrado já travado, não faz nada
+   if(!analiseAtiva || rompeuTopo) return(rates_total);
+
+   // Monitora apenas a barra atual (índice 0)
+   double high_atual = iHigh(_Symbol, _Period, 0);
+   double low_atual = iLow(_Symbol, _Period, 0);
+   double close_atual = iClose(_Symbol, _Period, 0);
 
    // Obtém os preços das linhas horizontais e Fibonacci
    double precoLinhaHorizontalSuperior = ObjectGetDouble(0, nomeLinhaHorizontalSuperior, OBJPROP_PRICE);
@@ -586,95 +700,74 @@ int OnCalculate(const int rates_total,
    // ========== FASE 1: MONITORANDO ANTES DE TOCAR NA FIBO 61.8 ==========
    if(monitorandoAntesFibo && !tocouFibo618)
    {
-      Print("Monitorando ANTES do toque na Fibo 61.8...");
-
-      // Verifica se tocou na Fibo 61.8
-      for(int i = 0; i < 10; i++)
+      // Verifica se o preço FECHOU (corpo) acima da linha horizontal superior
+      // ANTES de tocar na Fibo → encerra e alerta
+      if(close_atual > precoLinhaHorizontalSuperior)
       {
-         double high_i = iHigh(_Symbol, _Period, i);
-         double low_i = iLow(_Symbol, _Period, i);
-         double close_i = iClose(_Symbol, _Period, i);
+         Print("TOPO SUPERADO antes de tocar na Fibo! Close: ", close_atual, " | Linha Superior: ", precoLinhaHorizontalSuperior);
+         Alert("TOPO SUPERADO, REAJUSTE A FIBO");
 
-         // Verifica se o preço FECHOU (corpo) acima da linha horizontal superior
-         // ANTES de tocar na Fibo → encerra e alerta
-         if(close_i > precoLinhaHorizontalSuperior)
-         {
-            Print("TOPO SUPERADO antes de tocar na Fibo! Close: ", close_i, " | Linha Superior: ", precoLinhaHorizontalSuperior);
-            Alert("TOPO SUPERADO, REAJUSTE A FIBO");
+         // Encerra o monitoramento
+         analiseAtiva = false;
+         monitorandoAntesFibo = false;
+         return(rates_total);
+      }
 
-            // Encerra o monitoramento
-            analiseAtiva = false;
-            monitorandoAntesFibo = false;
-            return(rates_total);
-         }
+      // Verifica se tocou na linha 61.8
+      if(low_atual <= preco618 && high_atual >= preco618)
+      {
+         Print("TOQUE NA FIBO 61.8 DETECTADO em tempo real!");
 
-         // Verifica se tocou na linha 61.8
-         if(low_i <= preco618 && high_i >= preco618)
-         {
-            Print("TOQUE NA FIBO 61.8 DETECTADO! Barra índice: ", i);
+         // Atualiza estado: saiu da fase de monitoramento, entrou na fase pós-toque
+         tocouFibo618 = true;
+         monitorandoAntesFibo = false;
 
-            // Atualiza estado: saiu da fase de monitoramento, entrou na fase pós-toque
-            tocouFibo618 = true;
-            monitorandoAntesFibo = false;
+         // Cria o quadrado inicial na primeira vez que toca
+         datetime tempoToque = iTime(_Symbol, _Period, 0);
+         CriarQuadradoAnalise(tempoToque, low_atual, 10);
+         fundoAtual = low_atual;
+         barraInicio = 0;
 
-            // Cria o quadrado inicial na primeira vez que toca
-            datetime tempoToque = iTime(_Symbol, _Period, i);
-            CriarQuadradoAnalise(tempoToque, low_i, 10);
-            fundoAtual = low_i;
-            barraInicio = i;
-
-            Alert("Toque na Fibonacci 61.8% detectado! Quadrado criado.");
-            break;
-         }
+         Alert("Toque na Fibonacci 61.8% detectado! Quadrado criado.");
+         return(rates_total);
       }
    }
 
    // ========== FASE 2: APÓS TOCAR NA FIBO 61.8 ==========
    if(tocouFibo618 && !rompeuTopo && ObjectFind(0, nomeQuadradoAnalise) >= 0)
    {
-      Print("Monitorando APÓS o toque na Fibo 61.8...");
-
       // Obtém o fundo atual do quadrado
       double baseAtual = ObjectGetDouble(0, nomeQuadradoAnalise, OBJPROP_PRICE, 0);
       double topoAtual = baseAtual + (400 * _Point);
 
-      // Verifica as últimas barras
-      for(int i = 0; i < 10; i++)
+      // Verifica se o CORPO da vela fechou abaixo do limite inferior (20% abaixo da linha centro)
+      if(close_atual < limiteInferior)
       {
-         double low_i = iLow(_Symbol, _Period, i);
-         double close_i = iClose(_Symbol, _Period, i);
+         Print("FUNDO SUPERADO! Close: ", close_atual, " | Limite Inferior (20%): ", limiteInferior);
+         Alert("SUPEROU O FUNDO, REAJUSTE A FIBO");
 
-         // Verifica se o CORPO da vela fechou abaixo do limite inferior (20% abaixo da linha centro)
-         if(close_i < limiteInferior)
-         {
-            Print("FUNDO SUPERADO! Close: ", close_i, " | Limite Inferior (20%): ", limiteInferior);
-            Alert("SUPEROU O FUNDO, REAJUSTE A FIBO");
+         // Encerra o monitoramento
+         analiseAtiva = false;
+         tocouFibo618 = false;
+         return(rates_total);
+      }
 
-            // Encerra o monitoramento
-            analiseAtiva = false;
-            tocouFibo618 = false;
-            return(rates_total);
-         }
+      // Se encontrou novo fundo, atualiza o quadrado
+      if(low_atual < baseAtual)
+      {
+         datetime tempo = iTime(_Symbol, _Period, 0);
+         CriarQuadradoAnalise(tempo, low_atual, 10);
+         fundoAtual = low_atual;
+         Print("Fundo do quadrado atualizado em tempo real: ", fundoAtual);
+      }
 
-         // Se encontrou novo fundo, atualiza o quadrado
-         if(low_i < baseAtual)
-         {
-            datetime tempo = iTime(_Symbol, _Period, i);
-            CriarQuadradoAnalise(tempo, low_i, 10);
-            fundoAtual = low_i;
-            baseAtual = low_i;
-            topoAtual = baseAtual + (400 * _Point);
-            Print("Fundo do quadrado atualizado: ", fundoAtual);
-         }
-
-         // Se rompeu o topo do quadrado, trava
-         if(close_i > topoAtual)
-         {
-            rompeuTopo = true;
-            Print("QUADRADO TRAVADO! Rompimento do topo em: ", close_i);
-            Alert("Quadrado travado: Rompimento detectado!");
-            return(rates_total);
-         }
+      // Se rompeu o topo do quadrado, trava
+      if(close_atual > topoAtual)
+      {
+         rompeuTopo = true;
+         Print("QUADRADO TRAVADO! Rompimento do topo em: ", close_atual);
+         Alert("Quadrado travado: Rompimento detectado!");
+         return(rates_total);
       }
    }
 
