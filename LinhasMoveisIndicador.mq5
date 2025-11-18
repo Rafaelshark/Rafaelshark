@@ -4,16 +4,23 @@
 //+------------------------------------------------------------------+
 #property copyright "Indicador Personalizado"
 #property link      ""
-#property version   "3.21"
+#property version   "3.30"
 #property indicator_chart_window
 #property indicator_plots 0
 
 //+------------------------------------------------------------------+
 //| Parâmetros de entrada                                            |
 //+------------------------------------------------------------------+
-input group "=== Posição do Botão Analisar ==="
-input int BotaoPosX = 10;  // Posição X do botão (pixels da borda direita)
-input int BotaoPosY = 10;   // Posição Y do botão (pixels da borda superior)
+input group "=== Posição dos Botões ==="
+input int BotaoPosX = 10;          // Posição X dos botões (pixels da borda direita)
+input int BotaoPosY = 10;          // Posição Y dos botões (pixels da borda superior)
+
+input group "=== Posição das Tabelas de Status ==="
+input int TabelaPosX = 140;        // Posição X das tabelas (pixels da borda direita)
+input int TabelaPosY = 10;         // Posição Y das tabelas (pixels da borda superior)
+
+input group "=== Configurações do Quadrado de Análise ==="
+input int AlturaQuadrado = 400;    // Altura do quadrado em pontos
 
 // Nomes dos objetos
 string nomeLinhaHorizontalSuperior = "LinhaH_Superior";
@@ -64,7 +71,7 @@ bool linhasTravadas = false;    // Controla se as linhas estão travadas
 //+------------------------------------------------------------------+
 int OnInit()
 {
-   Print("Iniciando indicador LinhasMoveisIndicador v3.21...");
+   Print("Iniciando indicador LinhasMoveisIndicador v3.30...");
 
    // Obtém o preço máximo e mínimo visível no gráfico
    double precoMaximo = ChartGetDouble(0, CHART_PRICE_MAX, 0);
@@ -527,8 +534,8 @@ void CriarQuadradoAnalise(datetime tempoInicio, double precoBase, int larguraVel
    // Adiciona uma projeção de 20 barras para o futuro para ficar visível
    datetime tempoFim = iTime(_Symbol, _Period, 0) + (PeriodSeconds(_Period) * 20);
 
-   // Altura do quadrado em pontos
-   double alturaEmPreco = 400 * _Point;
+   // Altura do quadrado em pontos (usa parâmetro configurável)
+   double alturaEmPreco = AlturaQuadrado * _Point;
    double precoTopo = precoBase + alturaEmPreco;
 
    Print("Criando quadrado - Base: ", precoBase, " Topo: ", precoTopo, " Tempo início: ", TimeToString(tempoInicio), " Tempo fim: ", TimeToString(tempoFim));
@@ -672,7 +679,7 @@ void AnalisarFibonacci()
          }
 
          // Verifica se rompeu o topo do quadrado
-         double topoQuadrado = fundoQuadrado + (400 * _Point);
+         double topoQuadrado = fundoQuadrado + (AlturaQuadrado * _Point);
          if(close_i > topoQuadrado)
          {
             Print("QUADRADO TRAVADO no histórico! Barra: ", i, " Close: ", close_i);
@@ -849,7 +856,7 @@ int OnCalculate(const int rates_total,
       }
 
       // Recalcula o topo baseado no fundo atual
-      double topoAtual = baseAtual + (400 * _Point);
+      double topoAtual = baseAtual + (AlturaQuadrado * _Point);
 
       // Verifica as 3 últimas barras para eventos de rompimento
       for(int idx = 0; idx < 3; idx++)
@@ -1013,12 +1020,6 @@ void OnChartEvent(const int id,
 
       // Atualiza posições de todos os pontos para manter sincronização
       SincronizarPontos();
-
-      // Atualiza linha azul quando as linhas pretas são movidas
-      if(sparam == nomePontoSuperiorEsquerda || sparam == nomePontoCentroEsquerda)
-      {
-         ReposicionarLinhaAzul();
-      }
 
       // Atualiza as linhas de Fibonacci
       AtualizarLinhasFibonacci();
@@ -1254,8 +1255,8 @@ void CriarTabelaStatus()
    }
 
    ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_CORNER, CORNER_RIGHT_UPPER);
-   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_XDISTANCE, BotaoPosX + 130);
-   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_YDISTANCE, BotaoPosY);
+   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_XDISTANCE, TabelaPosX);
+   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_YDISTANCE, TabelaPosY);
    ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_COLOR, clrWhite);
    ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_FONTSIZE, 10);
    ObjectSetString(0, nomeLabelStatusAnalise, OBJPROP_FONT, "Arial Bold");
@@ -1275,8 +1276,8 @@ void CriarTabelaStatus()
    }
 
    ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_CORNER, CORNER_RIGHT_UPPER);
-   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_XDISTANCE, BotaoPosX + 130);
-   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_YDISTANCE, BotaoPosY + 25);
+   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_XDISTANCE, TabelaPosX);
+   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_YDISTANCE, TabelaPosY + 25);
    ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_COLOR, clrWhite);
    ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_FONTSIZE, 10);
    ObjectSetString(0, nomeLabelStatusTravamento, OBJPROP_FONT, "Arial Bold");
