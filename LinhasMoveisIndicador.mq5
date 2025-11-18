@@ -4,7 +4,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Indicador Personalizado"
 #property link      ""
-#property version   "3.00"
+#property version   "3.10"
 #property indicator_chart_window
 #property indicator_plots 0
 
@@ -63,7 +63,7 @@ bool linhasTravadas = false;    // Controla se as linhas estão travadas
 //+------------------------------------------------------------------+
 int OnInit()
 {
-   Print("Iniciando indicador LinhasMoveisIndicador v3.00...");
+   Print("Iniciando indicador LinhasMoveisIndicador v3.10...");
 
    // Obtém o preço máximo e mínimo visível no gráfico
    double precoMaximo = ChartGetDouble(0, CHART_PRICE_MAX, 0);
@@ -790,6 +790,7 @@ int OnCalculate(const int rates_total,
             // Encerra o monitoramento
             analiseAtiva = false;
             monitorandoAntesFibo = false;
+            AtualizarTabelasStatus();
             return(rates_total);
          }
 
@@ -808,18 +809,28 @@ int OnCalculate(const int rates_total,
             fundoAtual = low_i;
             barraInicio = idx;
 
+            AtualizarTabelasStatus();
             ChartRedraw(0);
             Alert("Toque na Fibonacci 61.8% detectado! Quadrado criado.");
-            return(rates_total);
+
+            // NÃO FAZ RETURN - CONTINUA O LOOP PARA JÁ COMEÇAR A MONITORAR
          }
       }
+   }
 
-      // ========== FASE 2: APÓS TOCAR NA FIBO 61.8 ==========
-      if(tocouFibo618 && !rompeuTopo && ObjectFind(0, nomeQuadradoAnalise) >= 0)
+   // ========== FASE 2: APÓS TOCAR NA FIBO 61.8 - MONITORAMENTO CONTÍNUO ==========
+   if(tocouFibo618 && !rompeuTopo && ObjectFind(0, nomeQuadradoAnalise) >= 0)
+   {
+      // Obtém o fundo atual do quadrado A CADA VEZ
+      double baseAtual = ObjectGetDouble(0, nomeQuadradoAnalise, OBJPROP_PRICE, 0);
+      double topoAtual = baseAtual + (400 * _Point);
+
+      // Verifica as 3 últimas barras
+      for(int idx = 0; idx < 3; idx++)
       {
-         // Obtém o fundo atual do quadrado
-         double baseAtual = ObjectGetDouble(0, nomeQuadradoAnalise, OBJPROP_PRICE, 0);
-         double topoAtual = baseAtual + (400 * _Point);
+         double high_i = iHigh(_Symbol, _Period, idx);
+         double low_i = iLow(_Symbol, _Period, idx);
+         double close_i = iClose(_Symbol, _Period, idx);
 
          // Verifica se o CORPO da vela fechou abaixo do limite inferior (20% abaixo da linha centro)
          if(close_i < limiteInferior)
@@ -830,6 +841,14 @@ int OnCalculate(const int rates_total,
             // Encerra o monitoramento
             analiseAtiva = false;
             tocouFibo618 = false;
+
+            // Remove quadrado e linha limite
+            if(ObjectFind(0, nomeQuadradoAnalise) >= 0)
+               ObjectDelete(0, nomeQuadradoAnalise);
+            if(ObjectFind(0, nomeLinhaLimite20) >= 0)
+               ObjectDelete(0, nomeLinhaLimite20);
+
+            AtualizarTabelasStatus();
             return(rates_total);
          }
 
@@ -839,16 +858,20 @@ int OnCalculate(const int rates_total,
             datetime tempo = iTime(_Symbol, _Period, idx);
             CriarQuadradoAnalise(tempo, low_i, 10);
             fundoAtual = low_i;
-            baseAtual = low_i;
+            baseAtual = low_i; // Atualiza para próxima iteração
             Print("Fundo do quadrado atualizado em tempo real na barra ", idx, ": ", fundoAtual);
             ChartRedraw(0);
          }
+
+         // Recalcula o topo baseado no fundo atualizado
+         topoAtual = baseAtual + (400 * _Point);
 
          // Se rompeu o topo do quadrado, trava
          if(close_i > topoAtual)
          {
             rompeuTopo = true;
             Print("QUADRADO TRAVADO! Barra: ", idx, " Close: ", close_i, " Rompimento do topo em: ", close_i);
+            AtualizarTabelasStatus();
             ChartRedraw(0);
             Alert("Quadrado travado: Rompimento detectado!");
             return(rates_total);
