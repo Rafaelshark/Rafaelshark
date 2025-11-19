@@ -12,21 +12,21 @@
 //| Parâmetros de entrada                                            |
 //+------------------------------------------------------------------+
 input group "=== Configurações dos Botões ==="
-input int BotaoPosX = 10;          // Posição X dos botões (pixels da borda direita)
-input int BotaoPosY = 10;          // Posição Y dos botões (pixels da borda superior)
-input int BotaoLargura = 120;      // Largura dos botões
-input int BotaoAltura = 35;        // Altura dos botões
+input int BotaoPosX = 190;         // Posição X dos botões (pixels da borda direita)
+input int BotaoPosY = 30;          // Posição Y dos botões (pixels da borda superior)
+input int BotaoLargura = 180;      // Largura dos botões
+input int BotaoAltura = 45;        // Altura dos botões
 
 input group "=== Posição das Tabelas de Status ==="
-input int TabelaPosX = 400;        // Posição X das tabelas (pixels da borda direita)
+input int TabelaPosX = 500;        // Posição X das tabelas (pixels da borda direita)
 input int TabelaPosY = 30;         // Posição Y das tabelas (pixels da borda superior)
-input int TabelaLargura = 250;     // Largura das tabelas
-input int TabelaAltura = 80;       // Altura das tabelas
-input int AlturaCabecalho = 28;    // Altura do cabeçalho das tabelas
-input int AjusteVerticalTitulo = 2; // Ajuste vertical do título (+ desce, - sobe)
-input int AjusteVerticalTexto = 0;  // Ajuste vertical do texto (+ desce, - sobe)
-input int TamanhoFonteTitulo = 12; // Tamanho da fonte do título
-input int TamanhoFonteTexto = 13;  // Tamanho da fonte do texto
+input int TabelaLargura = 290;     // Largura das tabelas
+input int TabelaAltura = 90;       // Altura das tabelas
+input int AlturaCabecalho = 30;    // Altura do cabeçalho das tabelas
+input int AjusteVerticalTitulo = 5; // Ajuste vertical do título (+ desce, - sobe)
+input int AjusteVerticalTexto = 2;  // Ajuste vertical do texto (+ desce, - sobe)
+input int TamanhoFonteTitulo = 11; // Tamanho da fonte do título
+input int TamanhoFonteTexto = 10;  // Tamanho da fonte do texto
 input string NomeFonte = "Segoe UI"; // Nome da fonte
 
 input group "=== Configurações do Quadrado de Análise ==="
