@@ -4,7 +4,7 @@
 //+------------------------------------------------------------------+
 #property copyright "EA Fibonacci - Indicador e Automatizado"
 #property link      ""
-#property version   "5.30"
+#property version   "5.40"
 #property indicator_chart_window
 #property indicator_plots 0
 
@@ -881,21 +881,8 @@ void ExecutarCompra(double baseQuadrado)
       return;
    }
 
-   // Obtém preço atual
+   // Obtém preço atual para entrada
    double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
-   double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
-
-   // Calcula os níveis
-   double topoQuadrado = baseQuadrado + (AlturaQuadrado * _Point);
-   double limiteMaximoEntrada = baseQuadrado + (800 * _Point);
-
-   // Verifica se o preço está na zona de entrada (Topo < Preço < Topo + 400)
-   // Considerando o spread
-   if(bid <= topoQuadrado || ask > limiteMaximoEntrada)
-   {
-      Print("Preço fora da zona de entrada. Bid: ", bid, " Topo: ", topoQuadrado, " Limite: ", limiteMaximoEntrada);
-      return;
-   }
 
    // Calcula Stop Loss: 125 pontos abaixo da base
    double stopLoss = baseQuadrado - (125 * _Point);
@@ -912,11 +899,10 @@ void ExecutarCompra(double baseQuadrado)
    takeProfit = MathFloor(takeProfit / tickSize) * tickSize;
 
    Print("===== EXECUTANDO COMPRA =====");
-   Print("Preço Entrada: ", ask);
-   Print("Stop Loss: ", stopLoss);
-   Print("Take Profit: ", takeProfit);
-   Print("Distância SL: ", (ask - stopLoss) / _Point, " pontos");
-   Print("Distância TP: ", (takeProfit - ask) / _Point, " pontos");
+   Print("Base: ", baseQuadrado);
+   Print("Ask Entrada: ", ask);
+   Print("Stop Loss: ", stopLoss, " (", (ask - stopLoss) / _Point, " pontos)");
+   Print("Take Profit: ", takeProfit, " (", (takeProfit - ask) / _Point, " pontos)");
 
    // Configura o trade
    trade.SetExpertMagicNumber(MagicNumber);
@@ -927,12 +913,12 @@ void ExecutarCompra(double baseQuadrado)
    {
       ticketOrdem = trade.ResultOrder();
       jaOperou = true;
-      Print("COMPRA EXECUTADA COM SUCESSO! Ticket: ", ticketOrdem);
+      Print("✅ COMPRA EXECUTADA COM SUCESSO! Ticket: ", ticketOrdem);
       Alert("EA Fibonacci: Compra executada! Ticket: ", ticketOrdem);
    }
    else
    {
-      Print("ERRO ao executar compra. Código: ", GetLastError());
+      Print("❌ ERRO ao executar compra. Código: ", GetLastError());
       Print("Detalhes: ", trade.ResultRetcodeDescription());
    }
 }
