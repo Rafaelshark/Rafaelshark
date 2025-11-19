@@ -4,7 +4,7 @@
 //+------------------------------------------------------------------+
 #property copyright "EA Fibonacci - Indicador e Automatizado"
 #property link      ""
-#property version   "5.10"
+#property version   "5.20"
 #property indicator_chart_window
 #property indicator_plots 0
 
@@ -981,8 +981,16 @@ int OnCalculate(const int rates_total,
    double limiteInferior = precoLinhaHorizontalCentro - tolerancia20Porcento;
 
    // Verifica as 3 últimas barras para não perder eventos
+   // MAS: só considera barras À DIREITA (ou NA) linha azul (barraInicioMonitoramento)
    for(int idx = 0; idx < 3; idx++)
    {
+      // IMPORTANTE: Ignora barras ANTES da linha azul (índice maior que linha azul)
+      if(idx > barraInicioMonitoramento)
+      {
+         Print("Ignorando barra ", idx, " - está ANTES da linha azul (", barraInicioMonitoramento, ")");
+         continue; // Pula para próxima iteração
+      }
+
       double high_i = iHigh(_Symbol, _Period, idx);
       double low_i = iLow(_Symbol, _Period, idx);
       double close_i = iClose(_Symbol, _Period, idx);
@@ -1053,8 +1061,16 @@ int OnCalculate(const int rates_total,
       double topoAtual = baseAtual + (AlturaQuadrado * _Point);
 
       // Verifica as 3 últimas barras para eventos de rompimento
+      // MAS: só considera barras À DIREITA (ou NA) linha azul
       for(int idx = 0; idx < 3; idx++)
       {
+         // IMPORTANTE: Ignora barras ANTES da linha azul
+         if(idx > barraInicioMonitoramento)
+         {
+            Print("Ignorando barra ", idx, " na verificação de rompimento - está ANTES da linha azul");
+            continue;
+         }
+
          double close_i = iClose(_Symbol, _Period, idx);
          double low_i = iLow(_Symbol, _Period, idx);
 
