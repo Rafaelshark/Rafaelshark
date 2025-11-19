@@ -4,7 +4,7 @@
 //+------------------------------------------------------------------+
 #property copyright "EA Fibonacci - Indicador e Automatizado"
 #property link      ""
-#property version   "5.00"
+#property version   "5.10"
 #property indicator_chart_window
 #property indicator_plots 0
 
@@ -66,10 +66,11 @@ string nomeBotaoInverterFibo = "Botao_InverterFibo";
 string nomeBotaoReset = "Botao_Reset";
 string nomeBotaoTravar = "Botao_Travar";
 
-// Nome do quadrado de análise e linha do limite
+// Nome do quadrado de análise e linhas de referência
 string nomeQuadradoAnalise = "Quadrado_Analise";
 string nomeLinhaLimite20 = "Linha_Limite_20";
-string nomeLinhaLimiteEntrada = "Linha_Limite_Entrada"; // Linha do limite máximo de entrada
+string nomeLinhaLimiteEntrada = "Linha_Limite_Entrada"; // Linha do limite máximo de entrada (Base + 800)
+string nomeLinhaStopLoss = "Linha_StopLoss"; // Linha vermelha do Stop Loss (Base - 125)
 
 // Nomes das tabelas de status
 string nomeLabelStatusAnalise = "Label_StatusAnalise";
@@ -582,6 +583,40 @@ void CriarLinhaLimiteEntrada(double precoBase)
 }
 
 //+------------------------------------------------------------------+
+//| Função para criar linha vermelha do Stop Loss (Base - 125)       |
+//+------------------------------------------------------------------+
+void CriarLinhaStopLoss(double precoBase)
+{
+   // Remove linha se já existir
+   if(ObjectFind(0, nomeLinhaStopLoss) >= 0)
+      ObjectDelete(0, nomeLinhaStopLoss);
+
+   // Calcula o nível do Stop Loss: Base - 125 pontos
+   double nivelStopLoss = precoBase - (125 * _Point);
+
+   // Cria a linha horizontal
+   if(!ObjectCreate(0, nomeLinhaStopLoss, OBJ_HLINE, 0, 0, nivelStopLoss))
+   {
+      Print("ERRO ao criar linha Stop Loss. Erro: ", GetLastError());
+      return;
+   }
+
+   // Define propriedades da linha (vermelha, tracejada)
+   ObjectSetInteger(0, nomeLinhaStopLoss, OBJPROP_COLOR, clrRed);
+   ObjectSetInteger(0, nomeLinhaStopLoss, OBJPROP_STYLE, STYLE_DASH);  // Tracejada
+   ObjectSetInteger(0, nomeLinhaStopLoss, OBJPROP_WIDTH, 2);
+   ObjectSetInteger(0, nomeLinhaStopLoss, OBJPROP_BACK, false);
+   ObjectSetInteger(0, nomeLinhaStopLoss, OBJPROP_SELECTABLE, false);
+   ObjectSetInteger(0, nomeLinhaStopLoss, OBJPROP_SELECTED, false);
+   ObjectSetInteger(0, nomeLinhaStopLoss, OBJPROP_HIDDEN, false);
+   ObjectSetInteger(0, nomeLinhaStopLoss, OBJPROP_ZORDER, 0);
+
+   ObjectSetString(0, nomeLinhaStopLoss, OBJPROP_TEXT, "Stop Loss (Base - 125 pontos)");
+
+   Print("Linha Stop Loss criada no preço: ", nivelStopLoss);
+}
+
+//+------------------------------------------------------------------+
 //| Função para criar ou atualizar o quadrado de análise             |
 //+------------------------------------------------------------------+
 void CriarQuadradoAnalise(datetime tempoInicio, double precoBase, int larguraVelas)
@@ -624,8 +659,9 @@ void CriarQuadradoAnalise(datetime tempoInicio, double precoBase, int larguraVel
 
    ObjectSetString(0, nomeQuadradoAnalise, OBJPROP_TEXT, "Quadrado de Análise - 400 pontos");
 
-   // Cria linha do limite máximo de entrada (Base + 800 pontos) para o EA
-   CriarLinhaLimiteEntrada(precoBase);
+   // Cria linhas de referência para o EA
+   CriarLinhaLimiteEntrada(precoBase);  // Linha azul: limite máximo de entrada (Base + 800)
+   CriarLinhaStopLoss(precoBase);       // Linha vermelha: Stop Loss (Base - 125)
 
    Print("Quadrado de análise criado - Base: ", precoBase, " Topo: ", precoTopo);
 }
@@ -1033,30 +1069,52 @@ int OnCalculate(const int rates_total,
             tocouFibo618 = false;
             tempoInicioQuadrado = 0;
 
-            // Remove quadrado e linhas limite
+            // Remove quadrado e linhas de referência
             if(ObjectFind(0, nomeQuadradoAnalise) >= 0)
                ObjectDelete(0, nomeQuadradoAnalise);
             if(ObjectFind(0, nomeLinhaLimite20) >= 0)
                ObjectDelete(0, nomeLinhaLimite20);
             if(ObjectFind(0, nomeLinhaLimiteEntrada) >= 0)
                ObjectDelete(0, nomeLinhaLimiteEntrada);
+            if(ObjectFind(0, nomeLinhaStopLoss) >= 0)
+               ObjectDelete(0, nomeLinhaStopLoss);
 
             AtualizarTabelasStatus();
             return(rates_total);
          }
 
-         // Se rompeu o topo do quadrado, tenta executar compra e trava
+         // Verifica se fechou acima do topo do quadrado
          if(close_i > topoAtual)
          {
-            // Tenta executar compra pelo EA antes de travar
-            ExecutarCompra(baseAtual);
+            // Calcula os níveis de entrada
+            double limiteMaximoEntrada = baseAtual + (800 * _Point);
+            double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
 
-            rompeuTopo = true;
-            Print("QUADRADO TRAVADO! Barra: ", idx, " Close: ", close_i, " | Topo: ", topoAtual);
-            AtualizarTabelasStatus();
-            ChartRedraw(0);
-            Alert("Quadrado travado: Rompimento detectado!");
-            return(rates_total);
+            // Verifica se está na ZONA DE ENTRADA (Topo < Ask <= Limite Máximo)
+            // Só trava e executa se estiver DENTRO da zona de entrada
+            if(ask > topoAtual && ask <= limiteMaximoEntrada)
+            {
+               Print("===== ROMPIMENTO VÁLIDO NA ZONA DE ENTRADA =====");
+               Print("Close: ", close_i, " | Topo: ", topoAtual, " | Ask: ", ask, " | Limite: ", limiteMaximoEntrada);
+
+               // Tenta executar compra pelo EA
+               ExecutarCompra(baseAtual);
+
+               // Trava o quadrado
+               rompeuTopo = true;
+               AtualizarTabelasStatus();
+               ChartRedraw(0);
+               Alert("Quadrado travado: Rompimento na zona de entrada!");
+               return(rates_total);
+            }
+            else if(ask > limiteMaximoEntrada)
+            {
+               // Preço fechou acima do topo mas JÁ ESTÁ FORA da zona de entrada
+               Print("AVISO: Preço fechou acima do topo mas FORA da zona de entrada!");
+               Print("Close: ", close_i, " | Ask: ", ask, " | Limite Máximo: ", limiteMaximoEntrada);
+               Alert("ATENÇÃO: Preço rompeu mas está FORA da zona de entrada (>800 pontos)!");
+               // NÃO trava o quadrado, continua monitorando
+            }
          }
       }
    }
@@ -1092,10 +1150,11 @@ void OnDeinit(const int reason)
    ObjectDelete(0, nomeBotaoReset);
    ObjectDelete(0, nomeBotaoTravar);
 
-   // Remove quadrado de análise e linhas limite
+   // Remove quadrado de análise e linhas de referência
    ObjectDelete(0, nomeQuadradoAnalise);
    ObjectDelete(0, nomeLinhaLimite20);
    ObjectDelete(0, nomeLinhaLimiteEntrada);
+   ObjectDelete(0, nomeLinhaStopLoss);
 
    // Remove tabelas de status profissionais
    RemoverTabelaProfissional("StatusAnalise");
@@ -1624,13 +1683,15 @@ void TravarDestravarLinhas()
          rompeuTopo = false;
          tempoInicioQuadrado = 0;
 
-         // Remove quadrado e linhas limite
+         // Remove quadrado e linhas de referência
          if(ObjectFind(0, nomeQuadradoAnalise) >= 0)
             ObjectDelete(0, nomeQuadradoAnalise);
          if(ObjectFind(0, nomeLinhaLimite20) >= 0)
             ObjectDelete(0, nomeLinhaLimite20);
          if(ObjectFind(0, nomeLinhaLimiteEntrada) >= 0)
             ObjectDelete(0, nomeLinhaLimiteEntrada);
+         if(ObjectFind(0, nomeLinhaStopLoss) >= 0)
+            ObjectDelete(0, nomeLinhaStopLoss);
 
          Print("Análise ENCERRADA ao destravar");
       }
@@ -1681,13 +1742,15 @@ void ResetarIndicador()
    jaOperou = false;
    ticketOrdem = 0;
 
-   // Remove o quadrado de análise e linhas limite
+   // Remove o quadrado de análise e linhas de referência
    if(ObjectFind(0, nomeQuadradoAnalise) >= 0)
       ObjectDelete(0, nomeQuadradoAnalise);
    if(ObjectFind(0, nomeLinhaLimite20) >= 0)
       ObjectDelete(0, nomeLinhaLimite20);
    if(ObjectFind(0, nomeLinhaLimiteEntrada) >= 0)
       ObjectDelete(0, nomeLinhaLimiteEntrada);
+   if(ObjectFind(0, nomeLinhaStopLoss) >= 0)
+      ObjectDelete(0, nomeLinhaStopLoss);
 
    // Remove o indicador atual e reinicializa
    OnDeinit(0);
