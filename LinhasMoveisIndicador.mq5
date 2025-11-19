@@ -4,7 +4,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Indicador Personalizado"
 #property link      ""
-#property version   "3.30"
+#property version   "3.31"
 #property indicator_chart_window
 #property indicator_plots 0
 
@@ -71,7 +71,7 @@ bool linhasTravadas = false;    // Controla se as linhas estão travadas
 //+------------------------------------------------------------------+
 int OnInit()
 {
-   Print("Iniciando indicador LinhasMoveisIndicador v3.30...");
+   Print("Iniciando indicador LinhasMoveisIndicador v3.31...");
 
    // Obtém o preço máximo e mínimo visível no gráfico
    double precoMaximo = ChartGetDouble(0, CHART_PRICE_MAX, 0);
@@ -933,9 +933,11 @@ void OnDeinit(const int reason)
    ObjectDelete(0, nomeQuadradoAnalise);
    ObjectDelete(0, nomeLinhaLimite20);
 
-   // Remove labels de status
+   // Remove labels de status (retângulos e textos)
    ObjectDelete(0, nomeLabelStatusAnalise);
+   ObjectDelete(0, nomeLabelStatusAnalise + "_Texto");
    ObjectDelete(0, nomeLabelStatusTravamento);
+   ObjectDelete(0, nomeLabelStatusTravamento + "_Texto");
 
    // Atualiza o gráfico
    ChartRedraw(0);
@@ -1248,7 +1250,7 @@ void CriarTabelaStatus()
    if(ObjectFind(0, nomeLabelStatusAnalise) >= 0)
       ObjectDelete(0, nomeLabelStatusAnalise);
 
-   if(!ObjectCreate(0, nomeLabelStatusAnalise, OBJ_LABEL, 0, 0, 0))
+   if(!ObjectCreate(0, nomeLabelStatusAnalise, OBJ_RECTANGLE_LABEL, 0, 0, 0))
    {
       Print("ERRO ao criar label status análise. Erro: ", GetLastError());
       return;
@@ -1257,19 +1259,43 @@ void CriarTabelaStatus()
    ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_CORNER, CORNER_RIGHT_UPPER);
    ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_XDISTANCE, TabelaPosX);
    ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_YDISTANCE, TabelaPosY);
-   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_COLOR, clrWhite);
-   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_FONTSIZE, 10);
-   ObjectSetString(0, nomeLabelStatusAnalise, OBJPROP_FONT, "Arial Bold");
-   ObjectSetString(0, nomeLabelStatusAnalise, OBJPROP_TEXT, "Análise: INATIVA");
-   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_BACK, true);
+   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_XSIZE, 180);
+   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_YSIZE, 25);
    ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_BGCOLOR, clrDarkRed);
    ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_BORDER_TYPE, BORDER_FLAT);
+   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_COLOR, clrWhite);
+   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_STYLE, STYLE_SOLID);
+   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_WIDTH, 1);
+   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_BACK, false);
+   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_SELECTABLE, false);
+   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_SELECTED, false);
+   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_HIDDEN, false);
+   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_ZORDER, 10);
+
+   // Cria texto sobre a tabela
+   string nomeTextoAnalise = nomeLabelStatusAnalise + "_Texto";
+   if(ObjectFind(0, nomeTextoAnalise) >= 0)
+      ObjectDelete(0, nomeTextoAnalise);
+
+   if(ObjectCreate(0, nomeTextoAnalise, OBJ_LABEL, 0, 0, 0))
+   {
+      ObjectSetInteger(0, nomeTextoAnalise, OBJPROP_CORNER, CORNER_RIGHT_UPPER);
+      ObjectSetInteger(0, nomeTextoAnalise, OBJPROP_XDISTANCE, TabelaPosX - 170);
+      ObjectSetInteger(0, nomeTextoAnalise, OBJPROP_YDISTANCE, TabelaPosY + 5);
+      ObjectSetInteger(0, nomeTextoAnalise, OBJPROP_COLOR, clrWhite);
+      ObjectSetInteger(0, nomeTextoAnalise, OBJPROP_FONTSIZE, 10);
+      ObjectSetString(0, nomeTextoAnalise, OBJPROP_FONT, "Arial Bold");
+      ObjectSetString(0, nomeTextoAnalise, OBJPROP_TEXT, "Análise: INATIVA");
+      ObjectSetInteger(0, nomeTextoAnalise, OBJPROP_SELECTABLE, false);
+      ObjectSetInteger(0, nomeTextoAnalise, OBJPROP_HIDDEN, false);
+      ObjectSetInteger(0, nomeTextoAnalise, OBJPROP_ZORDER, 11);
+   }
 
    // === TABELA STATUS TRAVAMENTO ===
    if(ObjectFind(0, nomeLabelStatusTravamento) >= 0)
       ObjectDelete(0, nomeLabelStatusTravamento);
 
-   if(!ObjectCreate(0, nomeLabelStatusTravamento, OBJ_LABEL, 0, 0, 0))
+   if(!ObjectCreate(0, nomeLabelStatusTravamento, OBJ_RECTANGLE_LABEL, 0, 0, 0))
    {
       Print("ERRO ao criar label status travamento. Erro: ", GetLastError());
       return;
@@ -1277,14 +1303,38 @@ void CriarTabelaStatus()
 
    ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_CORNER, CORNER_RIGHT_UPPER);
    ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_XDISTANCE, TabelaPosX);
-   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_YDISTANCE, TabelaPosY + 25);
-   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_COLOR, clrWhite);
-   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_FONTSIZE, 10);
-   ObjectSetString(0, nomeLabelStatusTravamento, OBJPROP_FONT, "Arial Bold");
-   ObjectSetString(0, nomeLabelStatusTravamento, OBJPROP_TEXT, "Linhas: DESTRAVADAS");
-   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_BACK, true);
+   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_YDISTANCE, TabelaPosY + 30);
+   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_XSIZE, 180);
+   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_YSIZE, 25);
    ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_BGCOLOR, clrGreen);
    ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_BORDER_TYPE, BORDER_FLAT);
+   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_COLOR, clrWhite);
+   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_STYLE, STYLE_SOLID);
+   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_WIDTH, 1);
+   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_BACK, false);
+   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_SELECTABLE, false);
+   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_SELECTED, false);
+   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_HIDDEN, false);
+   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_ZORDER, 10);
+
+   // Cria texto sobre a tabela de travamento
+   string nomeTextoTravamento = nomeLabelStatusTravamento + "_Texto";
+   if(ObjectFind(0, nomeTextoTravamento) >= 0)
+      ObjectDelete(0, nomeTextoTravamento);
+
+   if(ObjectCreate(0, nomeTextoTravamento, OBJ_LABEL, 0, 0, 0))
+   {
+      ObjectSetInteger(0, nomeTextoTravamento, OBJPROP_CORNER, CORNER_RIGHT_UPPER);
+      ObjectSetInteger(0, nomeTextoTravamento, OBJPROP_XDISTANCE, TabelaPosX - 145);
+      ObjectSetInteger(0, nomeTextoTravamento, OBJPROP_YDISTANCE, TabelaPosY + 35);
+      ObjectSetInteger(0, nomeTextoTravamento, OBJPROP_COLOR, clrWhite);
+      ObjectSetInteger(0, nomeTextoTravamento, OBJPROP_FONTSIZE, 10);
+      ObjectSetString(0, nomeTextoTravamento, OBJPROP_FONT, "Arial Bold");
+      ObjectSetString(0, nomeTextoTravamento, OBJPROP_TEXT, "Linhas: DESTRAVADAS");
+      ObjectSetInteger(0, nomeTextoTravamento, OBJPROP_SELECTABLE, false);
+      ObjectSetInteger(0, nomeTextoTravamento, OBJPROP_HIDDEN, false);
+      ObjectSetInteger(0, nomeTextoTravamento, OBJPROP_ZORDER, 11);
+   }
 
    Print("Tabelas de status criadas");
 }
@@ -1294,27 +1344,30 @@ void CriarTabelaStatus()
 //+------------------------------------------------------------------+
 void AtualizarTabelasStatus()
 {
+   string nomeTextoAnalise = nomeLabelStatusAnalise + "_Texto";
+   string nomeTextoTravamento = nomeLabelStatusTravamento + "_Texto";
+
    // Atualiza status da análise
    if(analiseAtiva)
    {
-      ObjectSetString(0, nomeLabelStatusAnalise, OBJPROP_TEXT, "Análise: ATIVA");
+      ObjectSetString(0, nomeTextoAnalise, OBJPROP_TEXT, "Análise: ATIVA");
       ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_BGCOLOR, clrDarkGreen);
    }
    else
    {
-      ObjectSetString(0, nomeLabelStatusAnalise, OBJPROP_TEXT, "Análise: INATIVA");
+      ObjectSetString(0, nomeTextoAnalise, OBJPROP_TEXT, "Análise: INATIVA");
       ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_BGCOLOR, clrDarkRed);
    }
 
    // Atualiza status do travamento
    if(linhasTravadas)
    {
-      ObjectSetString(0, nomeLabelStatusTravamento, OBJPROP_TEXT, "Linhas: TRAVADAS");
+      ObjectSetString(0, nomeTextoTravamento, OBJPROP_TEXT, "Linhas: TRAVADAS");
       ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_BGCOLOR, clrDarkRed);
    }
    else
    {
-      ObjectSetString(0, nomeLabelStatusTravamento, OBJPROP_TEXT, "Linhas: DESTRAVADAS");
+      ObjectSetString(0, nomeTextoTravamento, OBJPROP_TEXT, "Linhas: DESTRAVADAS");
       ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_BGCOLOR, clrGreen);
    }
 
