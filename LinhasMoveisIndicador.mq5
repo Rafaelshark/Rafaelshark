@@ -11,6 +11,9 @@
 //+------------------------------------------------------------------+
 //| Parâmetros de entrada                                            |
 //+------------------------------------------------------------------+
+input group "=== Configurações de Fibonacci ==="
+input double NivelFibonacci = 61.8;  // Nível Fibonacci para ativação (%)
+
 input group "=== Posição do Botão Analisar ==="
 input int BotaoPosX = 10;  // Posição X do botão (pixels da borda direita)
 input int BotaoPosY = 10;   // Posição Y do botão (pixels da borda superior)
@@ -29,9 +32,8 @@ string nomePontoSuperiorDireita = "Ponto_SD";
 string nomePontoCentroEsquerda = "Ponto_CE";
 string nomePontoCentroDireita = "Ponto_CD";
 
-// Nomes das linhas de Fibonacci
-string nomeLinhaFibo618 = "Fibo_618";
-string nomeLinhaFibo764 = "Fibo_764";
+// Nome da linha de Fibonacci configurável
+string nomeLinhaFibo = "Fibo_Nivel";
 
 // Nome dos botões
 string nomeBotaoAnalisar = "Botao_Analisar";
@@ -40,6 +42,9 @@ string nomeBotaoReset = "Botao_Reset";
 
 // Nome do quadrado de análise
 string nomeQuadradoAnalise = "Quadrado_Analise";
+
+// Nome do painel de posição
+string nomePainelPosicao = "Painel_Posicao";
 
 // Variáveis de controle da análise
 bool fiboInvertida = false;  // Controla se a Fibonacci está invertida
@@ -107,6 +112,9 @@ int OnInit()
    CriarBotaoAnalisar();
    CriarBotaoInverterFibo();
    CriarBotaoReset();
+
+   // Cria o painel de posição
+   CriarPainelPosicao();
 
    // Inicializa variáveis
    fiboInvertida = false;
@@ -396,13 +404,13 @@ void AtualizarLinhasFibonacci()
 
    if(fiboInvertida)
    {
-      // Fibonacci invertida: 0% = Superior Esquerda, 100% = Centro Esquerda
+      // Fibonacci invertida (BAIXO): 0% = Superior Esquerda, 100% = Centro Esquerda
       preco0 = ObjectGetDouble(0, nomePontoSuperiorEsquerda, OBJPROP_PRICE);
       preco100 = ObjectGetDouble(0, nomePontoCentroEsquerda, OBJPROP_PRICE);
    }
    else
    {
-      // Fibonacci normal: 0% = Centro Esquerda, 100% = Superior Esquerda
+      // Fibonacci normal (CIMA): 0% = Centro Esquerda, 100% = Superior Esquerda
       preco0 = ObjectGetDouble(0, nomePontoCentroEsquerda, OBJPROP_PRICE);
       preco100 = ObjectGetDouble(0, nomePontoSuperiorEsquerda, OBJPROP_PRICE);
    }
@@ -410,46 +418,28 @@ void AtualizarLinhasFibonacci()
    // Calcula a diferença total
    double diferencaTotal = preco100 - preco0;
 
-   // Calcula os níveis de Fibonacci
-   double preco618 = preco0 + (diferencaTotal * 0.618);
-   double preco764 = preco0 + (diferencaTotal * 0.764);
+   // Calcula o nível de Fibonacci configurável (converte % para decimal)
+   double nivelDecimal = NivelFibonacci / 100.0;
+   double precoNivel = preco0 + (diferencaTotal * nivelDecimal);
 
-   // Cria ou atualiza linha 61.8%
-   if(ObjectFind(0, nomeLinhaFibo618) < 0)
+   // Cria ou atualiza linha Fibonacci
+   if(ObjectFind(0, nomeLinhaFibo) < 0)
    {
-      ObjectCreate(0, nomeLinhaFibo618, OBJ_HLINE, 0, 0, preco618);
-      ObjectSetInteger(0, nomeLinhaFibo618, OBJPROP_COLOR, clrBlack);
-      ObjectSetInteger(0, nomeLinhaFibo618, OBJPROP_STYLE, STYLE_DASH);
-      ObjectSetInteger(0, nomeLinhaFibo618, OBJPROP_WIDTH, 2);
-      ObjectSetInteger(0, nomeLinhaFibo618, OBJPROP_BACK, false);
-      ObjectSetInteger(0, nomeLinhaFibo618, OBJPROP_SELECTABLE, false);
-      ObjectSetString(0, nomeLinhaFibo618, OBJPROP_TEXT, "Fibonacci 61.8%");
-      Print("Linha Fibonacci 61.8% criada");
+      ObjectCreate(0, nomeLinhaFibo, OBJ_HLINE, 0, 0, precoNivel);
+      ObjectSetInteger(0, nomeLinhaFibo, OBJPROP_COLOR, clrBlack);
+      ObjectSetInteger(0, nomeLinhaFibo, OBJPROP_STYLE, STYLE_DASH);
+      ObjectSetInteger(0, nomeLinhaFibo, OBJPROP_WIDTH, 2);
+      ObjectSetInteger(0, nomeLinhaFibo, OBJPROP_BACK, false);
+      ObjectSetInteger(0, nomeLinhaFibo, OBJPROP_SELECTABLE, false);
+      ObjectSetString(0, nomeLinhaFibo, OBJPROP_TEXT, "Fibonacci " + DoubleToString(NivelFibonacci, 1) + "%");
+      Print("Linha Fibonacci ", NivelFibonacci, "% criada");
    }
    else
    {
-      ObjectSetDouble(0, nomeLinhaFibo618, OBJPROP_PRICE, preco618);
-      ObjectSetInteger(0, nomeLinhaFibo618, OBJPROP_COLOR, clrBlack);
-      ObjectSetInteger(0, nomeLinhaFibo618, OBJPROP_STYLE, STYLE_DASH);
-   }
-
-   // Cria ou atualiza linha 76.4%
-   if(ObjectFind(0, nomeLinhaFibo764) < 0)
-   {
-      ObjectCreate(0, nomeLinhaFibo764, OBJ_HLINE, 0, 0, preco764);
-      ObjectSetInteger(0, nomeLinhaFibo764, OBJPROP_COLOR, clrBlack);
-      ObjectSetInteger(0, nomeLinhaFibo764, OBJPROP_STYLE, STYLE_DASH);
-      ObjectSetInteger(0, nomeLinhaFibo764, OBJPROP_WIDTH, 2);
-      ObjectSetInteger(0, nomeLinhaFibo764, OBJPROP_BACK, false);
-      ObjectSetInteger(0, nomeLinhaFibo764, OBJPROP_SELECTABLE, false);
-      ObjectSetString(0, nomeLinhaFibo764, OBJPROP_TEXT, "Fibonacci 76.4%");
-      Print("Linha Fibonacci 76.4% criada");
-   }
-   else
-   {
-      ObjectSetDouble(0, nomeLinhaFibo764, OBJPROP_PRICE, preco764);
-      ObjectSetInteger(0, nomeLinhaFibo764, OBJPROP_COLOR, clrBlack);
-      ObjectSetInteger(0, nomeLinhaFibo764, OBJPROP_STYLE, STYLE_DASH);
+      ObjectSetDouble(0, nomeLinhaFibo, OBJPROP_PRICE, precoNivel);
+      ObjectSetInteger(0, nomeLinhaFibo, OBJPROP_COLOR, clrBlack);
+      ObjectSetInteger(0, nomeLinhaFibo, OBJPROP_STYLE, STYLE_DASH);
+      ObjectSetString(0, nomeLinhaFibo, OBJPROP_TEXT, "Fibonacci " + DoubleToString(NivelFibonacci, 1) + "%");
    }
 }
 
@@ -507,21 +497,21 @@ void AnalisarFibonacci()
    if(ObjectFind(0, nomeQuadradoAnalise) >= 0)
       ObjectDelete(0, nomeQuadradoAnalise);
 
-   // Obtém os preços das linhas Fibonacci
-   double preco618 = ObjectGetDouble(0, nomeLinhaFibo618, OBJPROP_PRICE);
-   double preco764 = ObjectGetDouble(0, nomeLinhaFibo764, OBJPROP_PRICE);
+   // Obtém o preço da linha Fibonacci configurável
+   double precoFibo = ObjectGetDouble(0, nomeLinhaFibo, OBJPROP_PRICE);
 
-   Print("Preços Fibonacci - 61.8%: ", preco618, " | 76.4%: ", preco764);
+   Print("Preço Fibonacci ", NivelFibonacci, "%: ", precoFibo);
 
-   // Verifica se 76.4 está abaixo de 61.8
-   if(preco764 >= preco618)
+   // Verifica a posição da Fibonacci
+   if(!fiboInvertida)
    {
-      Print("CONDIÇÃO NÃO ATENDIDA: 76.4 não está abaixo de 61.8");
-      Alert("Análise não pode ser executada: 76.4 deve estar abaixo de 61.8");
+      // Posição CIMA - não pode operar
+      Print("CONDIÇÃO NÃO ATENDIDA: Fibonacci está em posição CIMA");
+      Alert("Análise não pode ser executada: Fibonacci está em posição CIMA. Clique em 'Inverter Fibo' para posição BAIXO");
       return;
    }
 
-   Print("CONDIÇÃO OK: 76.4 está abaixo de 61.8");
+   Print("CONDIÇÃO OK: Fibonacci está em posição BAIXO - pode operar");
 
    // Obtém a posição da linha azul (início da análise)
    datetime tempoLinhaAzul = (datetime)ObjectGetInteger(0, nomeLinhaVerticalAzul, OBJPROP_TIME);
@@ -536,7 +526,7 @@ void AnalisarFibonacci()
    Print("Linha azul - Tempo: ", TimeToString(tempoLinhaAzul), " | Índice: ", indiceLinhaAzul);
 
    // Variáveis para análise
-   bool tocouNa618 = false;
+   bool tocouNaFibo = false;
    int indiceToque = -1;
    double precoToque = 0;
 
@@ -549,10 +539,10 @@ void AnalisarFibonacci()
       double low = iLow(_Symbol, _Period, i);
       datetime tempo = iTime(_Symbol, _Period, i);
 
-      // Verifica se tocou na linha 61.8
-      if(low <= preco618 && high >= preco618)
+      // Verifica se tocou na linha Fibonacci
+      if(low <= precoFibo && high >= precoFibo)
       {
-         tocouNa618 = true;
+         tocouNaFibo = true;
          indiceToque = i;
          precoToque = low;
          Print("TOQUE DETECTADO na barra ", i, " | Tempo: ", TimeToString(tempo), " | Low: ", low);
@@ -560,10 +550,10 @@ void AnalisarFibonacci()
       }
    }
 
-   if(!tocouNa618)
+   if(!tocouNaFibo)
    {
-      Print("Nenhum toque na linha 61.8 detectado após a linha azul");
-      Alert("Nenhum toque na linha 61.8 foi detectado");
+      Print("Nenhum toque na linha Fibonacci ", NivelFibonacci, "% detectado após a linha azul");
+      Alert("Nenhum toque na linha Fibonacci ", NivelFibonacci, "% foi detectado");
       return;
    }
 
@@ -681,6 +671,74 @@ int OnCalculate(const int rates_total,
 }
 
 //+------------------------------------------------------------------+
+//| Função para criar painel de posição CIMA/BAIXO                   |
+//+------------------------------------------------------------------+
+void CriarPainelPosicao()
+{
+   // Remove painel se já existir
+   if(ObjectFind(0, nomePainelPosicao) >= 0)
+      ObjectDelete(0, nomePainelPosicao);
+   if(ObjectFind(0, nomePainelPosicao + "_Texto") >= 0)
+      ObjectDelete(0, nomePainelPosicao + "_Texto");
+
+   // Define tamanho e posição do painel (embaixo dos dois botões)
+   int larguraPainel = 120;
+   int alturaPainel = 40;
+   int alturaBotao = 35;
+   int yPos = BotaoPosY + (alturaBotao + 5) * 3 + 10; // Embaixo dos 3 botões
+
+   // Cria o fundo do painel
+   if(!ObjectCreate(0, nomePainelPosicao, OBJ_RECTANGLE_LABEL, 0, 0, 0))
+   {
+      Print("ERRO ao criar painel de posição. Erro: ", GetLastError());
+      return;
+   }
+
+   // Define cor de fundo baseado na posição
+   color corFundo = fiboInvertida ? C'0,100,0' : C'139,0,0'; // Verde escuro ou Vermelho escuro
+
+   ObjectSetInteger(0, nomePainelPosicao, OBJPROP_XDISTANCE, BotaoPosX);
+   ObjectSetInteger(0, nomePainelPosicao, OBJPROP_YDISTANCE, yPos);
+   ObjectSetInteger(0, nomePainelPosicao, OBJPROP_XSIZE, larguraPainel);
+   ObjectSetInteger(0, nomePainelPosicao, OBJPROP_YSIZE, alturaPainel);
+   ObjectSetInteger(0, nomePainelPosicao, OBJPROP_BGCOLOR, corFundo);
+   ObjectSetInteger(0, nomePainelPosicao, OBJPROP_BORDER_TYPE, BORDER_FLAT);
+   ObjectSetInteger(0, nomePainelPosicao, OBJPROP_COLOR, clrWhite);
+   ObjectSetInteger(0, nomePainelPosicao, OBJPROP_CORNER, CORNER_RIGHT_UPPER);
+   ObjectSetInteger(0, nomePainelPosicao, OBJPROP_BACK, false);
+   ObjectSetInteger(0, nomePainelPosicao, OBJPROP_SELECTABLE, false);
+   ObjectSetInteger(0, nomePainelPosicao, OBJPROP_SELECTED, false);
+   ObjectSetInteger(0, nomePainelPosicao, OBJPROP_HIDDEN, false);
+   ObjectSetInteger(0, nomePainelPosicao, OBJPROP_ZORDER, 10);
+
+   // Cria o texto do painel
+   if(!ObjectCreate(0, nomePainelPosicao + "_Texto", OBJ_LABEL, 0, 0, 0))
+   {
+      Print("ERRO ao criar texto do painel de posição. Erro: ", GetLastError());
+      return;
+   }
+
+   string textoPos = fiboInvertida ? "POSIÇÃO: BAIXO" : "POSIÇÃO: CIMA";
+   color corTexto = fiboInvertida ? clrLime : clrRed;
+
+   ObjectSetInteger(0, nomePainelPosicao + "_Texto", OBJPROP_XDISTANCE, BotaoPosX - (larguraPainel / 2));
+   ObjectSetInteger(0, nomePainelPosicao + "_Texto", OBJPROP_YDISTANCE, yPos + (alturaPainel / 2) - 7);
+   ObjectSetInteger(0, nomePainelPosicao + "_Texto", OBJPROP_COLOR, corTexto);
+   ObjectSetInteger(0, nomePainelPosicao + "_Texto", OBJPROP_CORNER, CORNER_RIGHT_UPPER);
+   ObjectSetInteger(0, nomePainelPosicao + "_Texto", OBJPROP_ANCHOR, ANCHOR_CENTER);
+   ObjectSetInteger(0, nomePainelPosicao + "_Texto", OBJPROP_BACK, false);
+   ObjectSetInteger(0, nomePainelPosicao + "_Texto", OBJPROP_SELECTABLE, false);
+   ObjectSetInteger(0, nomePainelPosicao + "_Texto", OBJPROP_SELECTED, false);
+   ObjectSetInteger(0, nomePainelPosicao + "_Texto", OBJPROP_HIDDEN, false);
+   ObjectSetInteger(0, nomePainelPosicao + "_Texto", OBJPROP_ZORDER, 11);
+   ObjectSetString(0, nomePainelPosicao + "_Texto", OBJPROP_TEXT, textoPos);
+   ObjectSetString(0, nomePainelPosicao + "_Texto", OBJPROP_FONT, "Arial Bold");
+   ObjectSetInteger(0, nomePainelPosicao + "_Texto", OBJPROP_FONTSIZE, 9);
+
+   Print("Painel de posição criado: ", textoPos);
+}
+
+//+------------------------------------------------------------------+
 //| Função de desinicialização do indicador                         |
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
@@ -698,9 +756,8 @@ void OnDeinit(const int reason)
    ObjectDelete(0, nomePontoSuperiorEsquerda);
    ObjectDelete(0, nomePontoCentroEsquerda);
 
-   // Remove linhas de Fibonacci
-   ObjectDelete(0, nomeLinhaFibo618);
-   ObjectDelete(0, nomeLinhaFibo764);
+   // Remove linha de Fibonacci
+   ObjectDelete(0, nomeLinhaFibo);
 
    // Remove os botões
    ObjectDelete(0, nomeBotaoAnalisar);
@@ -709,6 +766,10 @@ void OnDeinit(const int reason)
 
    // Remove quadrado de análise
    ObjectDelete(0, nomeQuadradoAnalise);
+
+   // Remove painel de posição
+   ObjectDelete(0, nomePainelPosicao);
+   ObjectDelete(0, nomePainelPosicao + "_Texto");
 
    // Atualiza o gráfico
    ChartRedraw(0);
@@ -964,10 +1025,13 @@ void InverterFibonacci()
    // Inverte o estado da Fibonacci
    fiboInvertida = !fiboInvertida;
 
-   Print("Fibonacci invertida: ", fiboInvertida ? "SIM" : "NÃO");
+   Print("Fibonacci invertida: ", fiboInvertida ? "SIM (BAIXO)" : "NÃO (CIMA)");
 
    // Atualiza as linhas de Fibonacci com a nova configuração
    AtualizarLinhasFibonacci();
+
+   // Atualiza o painel de posição
+   CriarPainelPosicao();
 
    // Atualiza o gráfico
    ChartRedraw(0);
