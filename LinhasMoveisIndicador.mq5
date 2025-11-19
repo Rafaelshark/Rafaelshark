@@ -4,16 +4,18 @@
 //+------------------------------------------------------------------+
 #property copyright "Indicador Personalizado"
 #property link      ""
-#property version   "4.00"
+#property version   "4.10"
 #property indicator_chart_window
 #property indicator_plots 0
 
 //+------------------------------------------------------------------+
 //| Parâmetros de entrada                                            |
 //+------------------------------------------------------------------+
-input group "=== Posição dos Botões ==="
+input group "=== Configurações dos Botões ==="
 input int BotaoPosX = 10;          // Posição X dos botões (pixels da borda direita)
 input int BotaoPosY = 10;          // Posição Y dos botões (pixels da borda superior)
+input int BotaoLargura = 120;      // Largura dos botões
+input int BotaoAltura = 35;        // Altura dos botões
 
 input group "=== Posição das Tabelas de Status ==="
 input int TabelaPosX = 400;        // Posição X das tabelas (pixels da borda direita)
@@ -21,6 +23,8 @@ input int TabelaPosY = 30;         // Posição Y das tabelas (pixels da borda s
 input int TabelaLargura = 250;     // Largura das tabelas
 input int TabelaAltura = 80;       // Altura das tabelas
 input int AlturaCabecalho = 28;    // Altura do cabeçalho das tabelas
+input int AjusteVerticalTitulo = 2; // Ajuste vertical do título (+ desce, - sobe)
+input int AjusteVerticalTexto = 0;  // Ajuste vertical do texto (+ desce, - sobe)
 input int TamanhoFonteTitulo = 12; // Tamanho da fonte do título
 input int TamanhoFonteTexto = 13;  // Tamanho da fonte do texto
 input string NomeFonte = "Segoe UI"; // Nome da fonte
@@ -77,7 +81,7 @@ bool linhasTravadas = false;    // Controla se as linhas estão travadas
 //+------------------------------------------------------------------+
 int OnInit()
 {
-   Print("Iniciando indicador LinhasMoveisIndicador v4.00 com tabelas profissionais...");
+   Print("Iniciando indicador LinhasMoveisIndicador v4.10 com parâmetros ajustáveis...");
 
    // Obtém o preço máximo e mínimo visível no gráfico
    double precoMaximo = ChartGetDouble(0, CHART_PRICE_MAX, 0);
@@ -1082,10 +1086,6 @@ void CriarBotaoAnalisar()
    if(ObjectFind(0, nomeBotaoAnalisar) >= 0)
       ObjectDelete(0, nomeBotaoAnalisar);
 
-   // Define tamanho do botão
-   int larguraBotao = 120;
-   int alturaBotao = 35;
-
    // Cria o botão
    if(!ObjectCreate(0, nomeBotaoAnalisar, OBJ_BUTTON, 0, 0, 0))
    {
@@ -1096,8 +1096,8 @@ void CriarBotaoAnalisar()
    // Define propriedades do botão
    ObjectSetInteger(0, nomeBotaoAnalisar, OBJPROP_XDISTANCE, BotaoPosX);
    ObjectSetInteger(0, nomeBotaoAnalisar, OBJPROP_YDISTANCE, BotaoPosY);
-   ObjectSetInteger(0, nomeBotaoAnalisar, OBJPROP_XSIZE, larguraBotao);
-   ObjectSetInteger(0, nomeBotaoAnalisar, OBJPROP_YSIZE, alturaBotao);
+   ObjectSetInteger(0, nomeBotaoAnalisar, OBJPROP_XSIZE, BotaoLargura);
+   ObjectSetInteger(0, nomeBotaoAnalisar, OBJPROP_YSIZE, BotaoAltura);
    ObjectSetInteger(0, nomeBotaoAnalisar, OBJPROP_BGCOLOR, clrDodgerBlue);
    ObjectSetInteger(0, nomeBotaoAnalisar, OBJPROP_COLOR, clrWhite);
    ObjectSetInteger(0, nomeBotaoAnalisar, OBJPROP_BORDER_COLOR, clrNavy);
@@ -1125,10 +1125,8 @@ void CriarBotaoInverterFibo()
    if(ObjectFind(0, nomeBotaoInverterFibo) >= 0)
       ObjectDelete(0, nomeBotaoInverterFibo);
 
-   // Define tamanho do botão
-   int larguraBotao = 120;
-   int alturaBotao = 35;
-   int yPos = BotaoPosY + alturaBotao + 5;
+   // Calcula posição Y baseado no botão anterior
+   int yPos = BotaoPosY + BotaoAltura + 5;
 
    // Cria o botão
    if(!ObjectCreate(0, nomeBotaoInverterFibo, OBJ_BUTTON, 0, 0, 0))
@@ -1139,8 +1137,8 @@ void CriarBotaoInverterFibo()
 
    ObjectSetInteger(0, nomeBotaoInverterFibo, OBJPROP_XDISTANCE, BotaoPosX);
    ObjectSetInteger(0, nomeBotaoInverterFibo, OBJPROP_YDISTANCE, yPos);
-   ObjectSetInteger(0, nomeBotaoInverterFibo, OBJPROP_XSIZE, larguraBotao);
-   ObjectSetInteger(0, nomeBotaoInverterFibo, OBJPROP_YSIZE, alturaBotao);
+   ObjectSetInteger(0, nomeBotaoInverterFibo, OBJPROP_XSIZE, BotaoLargura);
+   ObjectSetInteger(0, nomeBotaoInverterFibo, OBJPROP_YSIZE, BotaoAltura);
    ObjectSetInteger(0, nomeBotaoInverterFibo, OBJPROP_BGCOLOR, clrOrange);
    ObjectSetInteger(0, nomeBotaoInverterFibo, OBJPROP_COLOR, clrWhite);
    ObjectSetInteger(0, nomeBotaoInverterFibo, OBJPROP_BORDER_COLOR, clrDarkOrange);
@@ -1168,10 +1166,8 @@ void CriarBotaoReset()
    if(ObjectFind(0, nomeBotaoReset) >= 0)
       ObjectDelete(0, nomeBotaoReset);
 
-   // Define tamanho do botão
-   int larguraBotao = 120;
-   int alturaBotao = 35;
-   int yPos = BotaoPosY + (alturaBotao + 5) * 2;
+   // Calcula posição Y (terceiro botão)
+   int yPos = BotaoPosY + (BotaoAltura + 5) * 2;
 
    // Cria o botão
    if(!ObjectCreate(0, nomeBotaoReset, OBJ_BUTTON, 0, 0, 0))
@@ -1182,8 +1178,8 @@ void CriarBotaoReset()
 
    ObjectSetInteger(0, nomeBotaoReset, OBJPROP_XDISTANCE, BotaoPosX);
    ObjectSetInteger(0, nomeBotaoReset, OBJPROP_YDISTANCE, yPos);
-   ObjectSetInteger(0, nomeBotaoReset, OBJPROP_XSIZE, larguraBotao);
-   ObjectSetInteger(0, nomeBotaoReset, OBJPROP_YSIZE, alturaBotao);
+   ObjectSetInteger(0, nomeBotaoReset, OBJPROP_XSIZE, BotaoLargura);
+   ObjectSetInteger(0, nomeBotaoReset, OBJPROP_YSIZE, BotaoAltura);
    ObjectSetInteger(0, nomeBotaoReset, OBJPROP_BGCOLOR, clrCrimson);
    ObjectSetInteger(0, nomeBotaoReset, OBJPROP_COLOR, clrWhite);
    ObjectSetInteger(0, nomeBotaoReset, OBJPROP_BORDER_COLOR, clrDarkRed);
@@ -1211,10 +1207,8 @@ void CriarBotaoTravar()
    if(ObjectFind(0, nomeBotaoTravar) >= 0)
       ObjectDelete(0, nomeBotaoTravar);
 
-   // Define tamanho do botão
-   int larguraBotao = 120;
-   int alturaBotao = 35;
-   int yPos = BotaoPosY + (alturaBotao + 5) * 3;
+   // Calcula posição Y (quarto botão)
+   int yPos = BotaoPosY + (BotaoAltura + 5) * 3;
 
    // Cria o botão
    if(!ObjectCreate(0, nomeBotaoTravar, OBJ_BUTTON, 0, 0, 0))
@@ -1225,8 +1219,8 @@ void CriarBotaoTravar()
 
    ObjectSetInteger(0, nomeBotaoTravar, OBJPROP_XDISTANCE, BotaoPosX);
    ObjectSetInteger(0, nomeBotaoTravar, OBJPROP_YDISTANCE, yPos);
-   ObjectSetInteger(0, nomeBotaoTravar, OBJPROP_XSIZE, larguraBotao);
-   ObjectSetInteger(0, nomeBotaoTravar, OBJPROP_YSIZE, alturaBotao);
+   ObjectSetInteger(0, nomeBotaoTravar, OBJPROP_XSIZE, BotaoLargura);
+   ObjectSetInteger(0, nomeBotaoTravar, OBJPROP_YSIZE, BotaoAltura);
    ObjectSetInteger(0, nomeBotaoTravar, OBJPROP_BGCOLOR, clrGold);
    ObjectSetInteger(0, nomeBotaoTravar, OBJPROP_COLOR, clrBlack);
    ObjectSetInteger(0, nomeBotaoTravar, OBJPROP_BORDER_COLOR, clrDarkGoldenrod);
@@ -1351,13 +1345,13 @@ void CriarTabelaProfissional(string nome, int posX, int posY,
 
    //--- Criar título centralizado no header
    int tituloX = posX - (TabelaLargura / 2);
-   int tituloY = posY + (AlturaCabecalho / 2) - (TamanhoFonteTitulo / 2) + 2;
+   int tituloY = posY + (AlturaCabecalho / 2) - (TamanhoFonteTitulo / 2) + AjusteVerticalTitulo;
    CriarTextoTabela(prefixo + "Titulo", titulo, tituloX, tituloY,
                     corTitulo, TamanhoFonteTitulo, NomeFonte + " Semibold");
 
    //--- Criar texto centralizado no corpo
    int textoX = posX - (TabelaLargura / 2);
-   int textoY = posY + AlturaCabecalho + ((TabelaAltura - AlturaCabecalho) / 2) - (TamanhoFonteTexto / 2);
+   int textoY = posY + AlturaCabecalho + ((TabelaAltura - AlturaCabecalho) / 2) - (TamanhoFonteTexto / 2) + AjusteVerticalTexto;
    CriarTextoTabela(prefixo + "Texto", texto, textoX, textoY,
                     corTexto, TamanhoFonteTexto, NomeFonte + " Bold");
 }
