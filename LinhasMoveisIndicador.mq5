@@ -2,11 +2,15 @@
 //|                                      LinhasMoveisIndicador.mq5   |
 //|                                  Indicador com Linhas Móveis     |
 //+------------------------------------------------------------------+
-#property copyright "Indicador Personalizado"
+#property copyright "EA Fibonacci - Indicador e Automatizado"
 #property link      ""
-#property version   "4.10"
+#property version   "5.00"
 #property indicator_chart_window
 #property indicator_plots 0
+
+#include <Trade\Trade.mqh>
+
+CTrade trade;
 
 //+------------------------------------------------------------------+
 //| Parâmetros de entrada                                            |
@@ -31,6 +35,12 @@ input string NomeFonte = "Segoe UI"; // Nome da fonte
 
 input group "=== Configurações do Quadrado de Análise ==="
 input int AlturaQuadrado = 400;    // Altura do quadrado em pontos
+
+input group "=== Configurações do EA (Expert Advisor) ==="
+input bool HabilitarEA = false;    // Habilitar negociação automática
+input double Lote = 0.01;          // Volume de lote
+input int MagicNumber = 123456;    // Número mágico
+input string Comentario = "EA Fibo"; // Comentário da ordem
 
 // Nomes dos objetos
 string nomeLinhaHorizontalSuperior = "LinhaH_Superior";
@@ -59,6 +69,7 @@ string nomeBotaoTravar = "Botao_Travar";
 // Nome do quadrado de análise e linha do limite
 string nomeQuadradoAnalise = "Quadrado_Analise";
 string nomeLinhaLimite20 = "Linha_Limite_20";
+string nomeLinhaLimiteEntrada = "Linha_Limite_Entrada"; // Linha do limite máximo de entrada
 
 // Nomes das tabelas de status
 string nomeLabelStatusAnalise = "Label_StatusAnalise";
@@ -75,6 +86,10 @@ datetime tempoInicioQuadrado = 0; // Tempo de início do quadrado (primeira vez 
 double fundoAtual = 0;          // Fundo atual do quadrado
 bool rompeuTopo = false;        // Se já rompeu o topo do quadrado
 bool linhasTravadas = false;    // Controla se as linhas estão travadas
+
+// Variáveis de controle do EA
+bool jaOperou = false;          // Controla se já realizou a operação (só opera 1 vez)
+ulong ticketOrdem = 0;          // Ticket da ordem aberta
 
 //+------------------------------------------------------------------+
 //| Função de inicialização do indicador                             |
@@ -149,6 +164,10 @@ int OnInit()
    tempoInicioQuadrado = 0;
    rompeuTopo = false;
    linhasTravadas = false;
+
+   // Inicializa variáveis do EA
+   jaOperou = false;
+   ticketOrdem = 0;
 
    // Força atualização do gráfico
    ChartRedraw(0);
@@ -529,6 +548,40 @@ void CriarLinhaLimite20()
 }
 
 //+------------------------------------------------------------------+
+//| Função para criar linha do limite máximo de entrada (Base + 800) |
+//+------------------------------------------------------------------+
+void CriarLinhaLimiteEntrada(double precoBase)
+{
+   // Remove linha se já existir
+   if(ObjectFind(0, nomeLinhaLimiteEntrada) >= 0)
+      ObjectDelete(0, nomeLinhaLimiteEntrada);
+
+   // Calcula o limite máximo de entrada: Base + 800 pontos
+   double limiteMaximoEntrada = precoBase + (800 * _Point);
+
+   // Cria a linha horizontal fina
+   if(!ObjectCreate(0, nomeLinhaLimiteEntrada, OBJ_HLINE, 0, 0, limiteMaximoEntrada))
+   {
+      Print("ERRO ao criar linha limite entrada. Erro: ", GetLastError());
+      return;
+   }
+
+   // Define propriedades da linha (bem fina e azul claro)
+   ObjectSetInteger(0, nomeLinhaLimiteEntrada, OBJPROP_COLOR, clrDodgerBlue);
+   ObjectSetInteger(0, nomeLinhaLimiteEntrada, OBJPROP_STYLE, STYLE_DOT);  // Pontilhada
+   ObjectSetInteger(0, nomeLinhaLimiteEntrada, OBJPROP_WIDTH, 1);
+   ObjectSetInteger(0, nomeLinhaLimiteEntrada, OBJPROP_BACK, false);
+   ObjectSetInteger(0, nomeLinhaLimiteEntrada, OBJPROP_SELECTABLE, false);
+   ObjectSetInteger(0, nomeLinhaLimiteEntrada, OBJPROP_SELECTED, false);
+   ObjectSetInteger(0, nomeLinhaLimiteEntrada, OBJPROP_HIDDEN, false);
+   ObjectSetInteger(0, nomeLinhaLimiteEntrada, OBJPROP_ZORDER, 0);
+
+   ObjectSetString(0, nomeLinhaLimiteEntrada, OBJPROP_TEXT, "Limite Máximo Entrada (Base + 800)");
+
+   Print("Linha limite entrada criada no preço: ", limiteMaximoEntrada);
+}
+
+//+------------------------------------------------------------------+
 //| Função para criar ou atualizar o quadrado de análise             |
 //+------------------------------------------------------------------+
 void CriarQuadradoAnalise(datetime tempoInicio, double precoBase, int larguraVelas)
@@ -570,6 +623,9 @@ void CriarQuadradoAnalise(datetime tempoInicio, double precoBase, int larguraVel
    ObjectSetInteger(0, nomeQuadradoAnalise, OBJPROP_RAY_RIGHT, true); // Estende para direita
 
    ObjectSetString(0, nomeQuadradoAnalise, OBJPROP_TEXT, "Quadrado de Análise - 400 pontos");
+
+   // Cria linha do limite máximo de entrada (Base + 800 pontos) para o EA
+   CriarLinhaLimiteEntrada(precoBase);
 
    Print("Quadrado de análise criado - Base: ", precoBase, " Topo: ", precoTopo);
 }
@@ -770,6 +826,81 @@ void AnalisarFibonacci()
 }
 
 //+------------------------------------------------------------------+
+//| Função para executar compra (EA)                                 |
+//+------------------------------------------------------------------+
+void ExecutarCompra(double baseQuadrado)
+{
+   // Verifica se EA está habilitado
+   if(!HabilitarEA)
+   {
+      Print("EA não habilitado. Ative HabilitarEA = true nos parâmetros.");
+      return;
+   }
+
+   // Verifica se já operou
+   if(jaOperou)
+   {
+      Print("Já operou nesta análise. Aguardando take ou stop.");
+      return;
+   }
+
+   // Obtém preço atual
+   double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+   double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+
+   // Calcula os níveis
+   double topoQuadrado = baseQuadrado + (AlturaQuadrado * _Point);
+   double limiteMaximoEntrada = baseQuadrado + (800 * _Point);
+
+   // Verifica se o preço está na zona de entrada (Topo < Preço < Topo + 400)
+   // Considerando o spread
+   if(bid <= topoQuadrado || ask > limiteMaximoEntrada)
+   {
+      Print("Preço fora da zona de entrada. Bid: ", bid, " Topo: ", topoQuadrado, " Limite: ", limiteMaximoEntrada);
+      return;
+   }
+
+   // Calcula Stop Loss: 125 pontos abaixo da base
+   double stopLoss = baseQuadrado - (125 * _Point);
+
+   // Calcula distância entre entrada e stop
+   double distancia = ask - stopLoss;
+
+   // Calcula Take Profit: Entrada + distância
+   double takeProfit = ask + distancia;
+
+   // Normaliza os valores
+   double tickSize = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
+   stopLoss = MathFloor(stopLoss / tickSize) * tickSize;
+   takeProfit = MathFloor(takeProfit / tickSize) * tickSize;
+
+   Print("===== EXECUTANDO COMPRA =====");
+   Print("Preço Entrada: ", ask);
+   Print("Stop Loss: ", stopLoss);
+   Print("Take Profit: ", takeProfit);
+   Print("Distância SL: ", (ask - stopLoss) / _Point, " pontos");
+   Print("Distância TP: ", (takeProfit - ask) / _Point, " pontos");
+
+   // Configura o trade
+   trade.SetExpertMagicNumber(MagicNumber);
+   trade.SetDeviationInPoints(10);
+
+   // Executa a compra
+   if(trade.Buy(Lote, _Symbol, ask, stopLoss, takeProfit, Comentario))
+   {
+      ticketOrdem = trade.ResultOrder();
+      jaOperou = true;
+      Print("COMPRA EXECUTADA COM SUCESSO! Ticket: ", ticketOrdem);
+      Alert("EA Fibonacci: Compra executada! Ticket: ", ticketOrdem);
+   }
+   else
+   {
+      Print("ERRO ao executar compra. Código: ", GetLastError());
+      Print("Detalhes: ", trade.ResultRetcodeDescription());
+   }
+}
+
+//+------------------------------------------------------------------+
 //| Função de cálculo do indicador                                   |
 //+------------------------------------------------------------------+
 int OnCalculate(const int rates_total,
@@ -783,6 +914,23 @@ int OnCalculate(const int rates_total,
                 const long &volume[],
                 const int &spread[])
 {
+   // Monitora posição aberta pelo EA - se fechou (take ou stop), reseta controle
+   if(jaOperou && ticketOrdem > 0)
+   {
+      // Verifica se a posição ainda existe
+      if(!PositionSelectByTicket(ticketOrdem))
+      {
+         Print("===== POSIÇÃO FECHADA - Resetando controle do EA =====");
+         Print("Ticket: ", ticketOrdem, " foi encerrado (Take Profit ou Stop Loss)");
+
+         // Reseta flags do EA para permitir nova operação
+         jaOperou = false;
+         ticketOrdem = 0;
+
+         Alert("EA Fibonacci: Posição encerrada. Sistema pronto para nova análise.");
+      }
+   }
+
    // Se análise não está ativa ou quadrado já travado, não faz nada
    if(!analiseAtiva || rompeuTopo) return(rates_total);
 
@@ -885,19 +1033,24 @@ int OnCalculate(const int rates_total,
             tocouFibo618 = false;
             tempoInicioQuadrado = 0;
 
-            // Remove quadrado e linha limite
+            // Remove quadrado e linhas limite
             if(ObjectFind(0, nomeQuadradoAnalise) >= 0)
                ObjectDelete(0, nomeQuadradoAnalise);
             if(ObjectFind(0, nomeLinhaLimite20) >= 0)
                ObjectDelete(0, nomeLinhaLimite20);
+            if(ObjectFind(0, nomeLinhaLimiteEntrada) >= 0)
+               ObjectDelete(0, nomeLinhaLimiteEntrada);
 
             AtualizarTabelasStatus();
             return(rates_total);
          }
 
-         // Se rompeu o topo do quadrado, trava
+         // Se rompeu o topo do quadrado, tenta executar compra e trava
          if(close_i > topoAtual)
          {
+            // Tenta executar compra pelo EA antes de travar
+            ExecutarCompra(baseAtual);
+
             rompeuTopo = true;
             Print("QUADRADO TRAVADO! Barra: ", idx, " Close: ", close_i, " | Topo: ", topoAtual);
             AtualizarTabelasStatus();
@@ -939,9 +1092,10 @@ void OnDeinit(const int reason)
    ObjectDelete(0, nomeBotaoReset);
    ObjectDelete(0, nomeBotaoTravar);
 
-   // Remove quadrado de análise e linha limite
+   // Remove quadrado de análise e linhas limite
    ObjectDelete(0, nomeQuadradoAnalise);
    ObjectDelete(0, nomeLinhaLimite20);
+   ObjectDelete(0, nomeLinhaLimiteEntrada);
 
    // Remove tabelas de status profissionais
    RemoverTabelaProfissional("StatusAnalise");
@@ -1470,11 +1624,13 @@ void TravarDestravarLinhas()
          rompeuTopo = false;
          tempoInicioQuadrado = 0;
 
-         // Remove quadrado e linha limite
+         // Remove quadrado e linhas limite
          if(ObjectFind(0, nomeQuadradoAnalise) >= 0)
             ObjectDelete(0, nomeQuadradoAnalise);
          if(ObjectFind(0, nomeLinhaLimite20) >= 0)
             ObjectDelete(0, nomeLinhaLimite20);
+         if(ObjectFind(0, nomeLinhaLimiteEntrada) >= 0)
+            ObjectDelete(0, nomeLinhaLimiteEntrada);
 
          Print("Análise ENCERRADA ao destravar");
       }
@@ -1521,11 +1677,17 @@ void ResetarIndicador()
    rompeuTopo = false;
    linhasTravadas = false;
 
-   // Remove o quadrado de análise e linha limite
+   // Reseta variáveis do EA
+   jaOperou = false;
+   ticketOrdem = 0;
+
+   // Remove o quadrado de análise e linhas limite
    if(ObjectFind(0, nomeQuadradoAnalise) >= 0)
       ObjectDelete(0, nomeQuadradoAnalise);
    if(ObjectFind(0, nomeLinhaLimite20) >= 0)
       ObjectDelete(0, nomeLinhaLimite20);
+   if(ObjectFind(0, nomeLinhaLimiteEntrada) >= 0)
+      ObjectDelete(0, nomeLinhaLimiteEntrada);
 
    // Remove o indicador atual e reinicializa
    OnDeinit(0);
