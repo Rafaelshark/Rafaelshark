@@ -4,9 +4,8 @@
 //+------------------------------------------------------------------+
 #property copyright "EA Fibonacci - Indicador e Automatizado"
 #property link      ""
-#property version   "5.40"
-#property indicator_chart_window
-#property indicator_plots 0
+#property version   "6.00"
+#property strict
 
 #include <Trade\Trade.mqh>
 
@@ -926,16 +925,10 @@ void ExecutarCompra(double baseQuadrado)
 //+------------------------------------------------------------------+
 //| Função de cálculo do indicador                                   |
 //+------------------------------------------------------------------+
-int OnCalculate(const int rates_total,
-                const int prev_calculated,
-                const datetime &time[],
-                const double &open[],
-                const double &high[],
-                const double &low[],
-                const double &close[],
-                const long &tick_volume[],
-                const long &volume[],
-                const int &spread[])
+//+------------------------------------------------------------------+
+//| Função OnTick - Executada a cada mudança de preço (tick)       |
+//+------------------------------------------------------------------+
+void OnTick()
 {
    // Monitora posição aberta pelo EA - se fechou (take ou stop), reseta controle
    if(jaOperou && ticketOrdem > 0)
@@ -955,7 +948,7 @@ int OnCalculate(const int rates_total,
    }
 
    // Se análise não está ativa ou quadrado já travado, não faz nada
-   if(!analiseAtiva || rompeuTopo) return(rates_total);
+   if(!analiseAtiva || rompeuTopo) return;
 
    // Obtém os preços das linhas horizontais e Fibonacci
    double precoLinhaHorizontalSuperior = ObjectGetDouble(0, nomeLinhaHorizontalSuperior, OBJPROP_PRICE);
@@ -996,7 +989,7 @@ int OnCalculate(const int rates_total,
             analiseAtiva = false;
             monitorandoAntesFibo = false;
             AtualizarTabelasStatus();
-            return(rates_total);
+            return;
          }
 
          // Verifica se tocou na linha 61.8
@@ -1084,7 +1077,7 @@ int OnCalculate(const int rates_total,
                ObjectDelete(0, nomeLinhaStopLoss);
 
             AtualizarTabelasStatus();
-            return(rates_total);
+            return;
          }
 
          // Verifica se ULTRAPASSOU (high > topo) E FECHOU ACIMA (close > topo) do quadrado
@@ -1110,7 +1103,7 @@ int OnCalculate(const int rates_total,
                AtualizarTabelasStatus();
                ChartRedraw(0);
                Alert("Quadrado travado: Rompimento válido na zona de entrada!");
-               return(rates_total);
+               return;
             }
             else if(ask > limiteMaximoEntrada)
             {
@@ -1123,8 +1116,6 @@ int OnCalculate(const int rates_total,
          }
       }
    }
-
-   return(rates_total);
 }
 
 //+------------------------------------------------------------------+
