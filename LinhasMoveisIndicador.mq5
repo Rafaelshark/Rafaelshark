@@ -4,7 +4,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Indicador Personalizado"
 #property link      ""
-#property version   "3.31"
+#property version   "3.32"
 #property indicator_chart_window
 #property indicator_plots 0
 
@@ -71,7 +71,7 @@ bool linhasTravadas = false;    // Controla se as linhas estão travadas
 //+------------------------------------------------------------------+
 int OnInit()
 {
-   Print("Iniciando indicador LinhasMoveisIndicador v3.31...");
+   Print("Iniciando indicador LinhasMoveisIndicador v3.32...");
 
    // Obtém o preço máximo e mínimo visível no gráfico
    double precoMaximo = ChartGetDouble(0, CHART_PRICE_MAX, 0);
@@ -1259,13 +1259,13 @@ void CriarTabelaStatus()
    ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_CORNER, CORNER_RIGHT_UPPER);
    ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_XDISTANCE, TabelaPosX);
    ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_YDISTANCE, TabelaPosY);
-   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_XSIZE, 180);
-   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_YSIZE, 25);
+   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_XSIZE, 200);
+   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_YSIZE, 30);
    ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_BGCOLOR, clrDarkRed);
    ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_BORDER_TYPE, BORDER_FLAT);
    ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_COLOR, clrWhite);
    ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_STYLE, STYLE_SOLID);
-   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_WIDTH, 1);
+   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_WIDTH, 2);
    ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_BACK, false);
    ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_SELECTABLE, false);
    ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_SELECTED, false);
@@ -1280,8 +1280,8 @@ void CriarTabelaStatus()
    if(ObjectCreate(0, nomeTextoAnalise, OBJ_LABEL, 0, 0, 0))
    {
       ObjectSetInteger(0, nomeTextoAnalise, OBJPROP_CORNER, CORNER_RIGHT_UPPER);
-      ObjectSetInteger(0, nomeTextoAnalise, OBJPROP_XDISTANCE, TabelaPosX - 170);
-      ObjectSetInteger(0, nomeTextoAnalise, OBJPROP_YDISTANCE, TabelaPosY + 5);
+      ObjectSetInteger(0, nomeTextoAnalise, OBJPROP_XDISTANCE, TabelaPosX + 10);
+      ObjectSetInteger(0, nomeTextoAnalise, OBJPROP_YDISTANCE, TabelaPosY + 8);
       ObjectSetInteger(0, nomeTextoAnalise, OBJPROP_COLOR, clrWhite);
       ObjectSetInteger(0, nomeTextoAnalise, OBJPROP_FONTSIZE, 10);
       ObjectSetString(0, nomeTextoAnalise, OBJPROP_FONT, "Arial Bold");
@@ -1289,6 +1289,7 @@ void CriarTabelaStatus()
       ObjectSetInteger(0, nomeTextoAnalise, OBJPROP_SELECTABLE, false);
       ObjectSetInteger(0, nomeTextoAnalise, OBJPROP_HIDDEN, false);
       ObjectSetInteger(0, nomeTextoAnalise, OBJPROP_ZORDER, 11);
+      ObjectSetInteger(0, nomeTextoAnalise, OBJPROP_ANCHOR, ANCHOR_RIGHT);
    }
 
    // === TABELA STATUS TRAVAMENTO ===
@@ -1303,14 +1304,14 @@ void CriarTabelaStatus()
 
    ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_CORNER, CORNER_RIGHT_UPPER);
    ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_XDISTANCE, TabelaPosX);
-   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_YDISTANCE, TabelaPosY + 30);
-   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_XSIZE, 180);
-   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_YSIZE, 25);
+   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_YDISTANCE, TabelaPosY + 35);
+   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_XSIZE, 200);
+   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_YSIZE, 30);
    ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_BGCOLOR, clrGreen);
    ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_BORDER_TYPE, BORDER_FLAT);
    ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_COLOR, clrWhite);
    ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_STYLE, STYLE_SOLID);
-   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_WIDTH, 1);
+   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_WIDTH, 2);
    ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_BACK, false);
    ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_SELECTABLE, false);
    ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_SELECTED, false);
@@ -1325,8 +1326,8 @@ void CriarTabelaStatus()
    if(ObjectCreate(0, nomeTextoTravamento, OBJ_LABEL, 0, 0, 0))
    {
       ObjectSetInteger(0, nomeTextoTravamento, OBJPROP_CORNER, CORNER_RIGHT_UPPER);
-      ObjectSetInteger(0, nomeTextoTravamento, OBJPROP_XDISTANCE, TabelaPosX - 145);
-      ObjectSetInteger(0, nomeTextoTravamento, OBJPROP_YDISTANCE, TabelaPosY + 35);
+      ObjectSetInteger(0, nomeTextoTravamento, OBJPROP_XDISTANCE, TabelaPosX + 10);
+      ObjectSetInteger(0, nomeTextoTravamento, OBJPROP_YDISTANCE, TabelaPosY + 43);
       ObjectSetInteger(0, nomeTextoTravamento, OBJPROP_COLOR, clrWhite);
       ObjectSetInteger(0, nomeTextoTravamento, OBJPROP_FONTSIZE, 10);
       ObjectSetString(0, nomeTextoTravamento, OBJPROP_FONT, "Arial Bold");
@@ -1334,6 +1335,7 @@ void CriarTabelaStatus()
       ObjectSetInteger(0, nomeTextoTravamento, OBJPROP_SELECTABLE, false);
       ObjectSetInteger(0, nomeTextoTravamento, OBJPROP_HIDDEN, false);
       ObjectSetInteger(0, nomeTextoTravamento, OBJPROP_ZORDER, 11);
+      ObjectSetInteger(0, nomeTextoTravamento, OBJPROP_ANCHOR, ANCHOR_RIGHT);
    }
 
    Print("Tabelas de status criadas");
