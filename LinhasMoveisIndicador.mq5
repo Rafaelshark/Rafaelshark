@@ -4,7 +4,7 @@
 //+------------------------------------------------------------------+
 #property copyright "EA Fibonacci - Indicador e Automatizado"
 #property link      ""
-#property version   "5.20"
+#property version   "5.30"
 #property indicator_chart_window
 #property indicator_plots 0
 
@@ -780,11 +780,12 @@ void AnalisarFibonacci()
             return; // Encerra a análise
          }
 
-         // Verifica se rompeu o topo do quadrado
+         // Verifica se ULTRAPASSOU (high > topo) E FECHOU ACIMA (close > topo) do quadrado
          double topoQuadrado = fundoQuadrado + (AlturaQuadrado * _Point);
-         if(close_i > topoQuadrado)
+         if(high_i > topoQuadrado && close_i > topoQuadrado)
          {
-            Print("QUADRADO TRAVADO no histórico! Barra: ", i, " Close: ", close_i);
+            Print("QUADRADO TRAVADO no histórico! Barra: ", i);
+            Print("High: ", high_i, " | Close: ", close_i, " | Topo: ", topoQuadrado);
 
             // Cria o quadrado travado
             datetime tempoInicioPrimeiroToque = iTime(_Symbol, _Period, indiceToqueFibo);
@@ -1073,6 +1074,7 @@ int OnCalculate(const int rates_total,
 
          double close_i = iClose(_Symbol, _Period, idx);
          double low_i = iLow(_Symbol, _Period, idx);
+         double high_i = iHigh(_Symbol, _Period, idx);
 
          // Verifica se o CORPO da vela fechou abaixo do limite inferior (20%)
          if(close_i < limiteInferior)
@@ -1099,8 +1101,8 @@ int OnCalculate(const int rates_total,
             return(rates_total);
          }
 
-         // Verifica se fechou acima do topo do quadrado
-         if(close_i > topoAtual)
+         // Verifica se ULTRAPASSOU (high > topo) E FECHOU ACIMA (close > topo) do quadrado
+         if(high_i > topoAtual && close_i > topoAtual)
          {
             // Calcula os níveis de entrada
             double limiteMaximoEntrada = baseAtual + (800 * _Point);
@@ -1111,7 +1113,8 @@ int OnCalculate(const int rates_total,
             if(ask > topoAtual && ask <= limiteMaximoEntrada)
             {
                Print("===== ROMPIMENTO VÁLIDO NA ZONA DE ENTRADA =====");
-               Print("Close: ", close_i, " | Topo: ", topoAtual, " | Ask: ", ask, " | Limite: ", limiteMaximoEntrada);
+               Print("High: ", high_i, " | Close: ", close_i, " | Topo: ", topoAtual);
+               Print("Ask: ", ask, " | Limite: ", limiteMaximoEntrada);
 
                // Tenta executar compra pelo EA
                ExecutarCompra(baseAtual);
@@ -1120,14 +1123,14 @@ int OnCalculate(const int rates_total,
                rompeuTopo = true;
                AtualizarTabelasStatus();
                ChartRedraw(0);
-               Alert("Quadrado travado: Rompimento na zona de entrada!");
+               Alert("Quadrado travado: Rompimento válido na zona de entrada!");
                return(rates_total);
             }
             else if(ask > limiteMaximoEntrada)
             {
-               // Preço fechou acima do topo mas JÁ ESTÁ FORA da zona de entrada
-               Print("AVISO: Preço fechou acima do topo mas FORA da zona de entrada!");
-               Print("Close: ", close_i, " | Ask: ", ask, " | Limite Máximo: ", limiteMaximoEntrada);
+               // Preço rompeu mas JÁ ESTÁ FORA da zona de entrada
+               Print("AVISO: Preço rompeu o topo mas FORA da zona de entrada!");
+               Print("High: ", high_i, " | Close: ", close_i, " | Ask: ", ask, " | Limite Máximo: ", limiteMaximoEntrada);
                Alert("ATENÇÃO: Preço rompeu mas está FORA da zona de entrada (>800 pontos)!");
                // NÃO trava o quadrado, continua monitorando
             }
