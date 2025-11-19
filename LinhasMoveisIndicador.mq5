@@ -4,7 +4,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Indicador Personalizado"
 #property link      ""
-#property version   "3.32"
+#property version   "4.00"
 #property indicator_chart_window
 #property indicator_plots 0
 
@@ -16,8 +16,14 @@ input int BotaoPosX = 10;          // Posição X dos botões (pixels da borda d
 input int BotaoPosY = 10;          // Posição Y dos botões (pixels da borda superior)
 
 input group "=== Posição das Tabelas de Status ==="
-input int TabelaPosX = 140;        // Posição X das tabelas (pixels da borda direita)
-input int TabelaPosY = 10;         // Posição Y das tabelas (pixels da borda superior)
+input int TabelaPosX = 400;        // Posição X das tabelas (pixels da borda direita)
+input int TabelaPosY = 30;         // Posição Y das tabelas (pixels da borda superior)
+input int TabelaLargura = 250;     // Largura das tabelas
+input int TabelaAltura = 80;       // Altura das tabelas
+input int AlturaCabecalho = 28;    // Altura do cabeçalho das tabelas
+input int TamanhoFonteTitulo = 12; // Tamanho da fonte do título
+input int TamanhoFonteTexto = 13;  // Tamanho da fonte do texto
+input string NomeFonte = "Segoe UI"; // Nome da fonte
 
 input group "=== Configurações do Quadrado de Análise ==="
 input int AlturaQuadrado = 400;    // Altura do quadrado em pontos
@@ -71,7 +77,7 @@ bool linhasTravadas = false;    // Controla se as linhas estão travadas
 //+------------------------------------------------------------------+
 int OnInit()
 {
-   Print("Iniciando indicador LinhasMoveisIndicador v3.32...");
+   Print("Iniciando indicador LinhasMoveisIndicador v4.00 com tabelas profissionais...");
 
    // Obtém o preço máximo e mínimo visível no gráfico
    double precoMaximo = ChartGetDouble(0, CHART_PRICE_MAX, 0);
@@ -933,11 +939,9 @@ void OnDeinit(const int reason)
    ObjectDelete(0, nomeQuadradoAnalise);
    ObjectDelete(0, nomeLinhaLimite20);
 
-   // Remove labels de status (retângulos e textos)
-   ObjectDelete(0, nomeLabelStatusAnalise);
-   ObjectDelete(0, nomeLabelStatusAnalise + "_Texto");
-   ObjectDelete(0, nomeLabelStatusTravamento);
-   ObjectDelete(0, nomeLabelStatusTravamento + "_Texto");
+   // Remove tabelas de status profissionais
+   RemoverTabelaProfissional("StatusAnalise");
+   RemoverTabelaProfissional("StatusTravamento");
 
    // Atualiza o gráfico
    ChartRedraw(0);
@@ -1246,99 +1250,151 @@ void CriarBotaoTravar()
 //+------------------------------------------------------------------+
 void CriarTabelaStatus()
 {
-   // === TABELA STATUS ANÁLISE ===
-   if(ObjectFind(0, nomeLabelStatusAnalise) >= 0)
-      ObjectDelete(0, nomeLabelStatusAnalise);
+   // === TABELA 1: STATUS ANÁLISE ===
+   int posY1 = TabelaPosY;
+   CriarTabelaProfissional("StatusAnalise", TabelaPosX, posY1,
+                           "STATUS ANÁLISE", "INATIVA",
+                           C'25,35,45', C'35,45,55', C'70,130,180',
+                           clrWhite, clrYellow);
 
-   if(!ObjectCreate(0, nomeLabelStatusAnalise, OBJ_RECTANGLE_LABEL, 0, 0, 0))
-   {
-      Print("ERRO ao criar label status análise. Erro: ", GetLastError());
-      return;
-   }
+   // === TABELA 2: STATUS TRAVAMENTO ===
+   int posY2 = TabelaPosY + TabelaAltura + 10;
+   CriarTabelaProfissional("StatusTravamento", TabelaPosX, posY2,
+                           "STATUS LINHAS", "DESTRAVADAS",
+                           C'20,40,30', C'30,50,40', C'50,205,50',
+                           clrWhite, clrLime);
 
-   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_CORNER, CORNER_RIGHT_UPPER);
-   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_XDISTANCE, TabelaPosX);
-   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_YDISTANCE, TabelaPosY);
-   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_XSIZE, 200);
-   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_YSIZE, 30);
-   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_BGCOLOR, clrDarkRed);
-   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_BORDER_TYPE, BORDER_FLAT);
-   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_COLOR, clrWhite);
-   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_STYLE, STYLE_SOLID);
-   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_WIDTH, 2);
-   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_BACK, false);
-   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_SELECTABLE, false);
-   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_SELECTED, false);
-   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_HIDDEN, false);
-   ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_ZORDER, 10);
+   Print("Tabelas de status criadas com design profissional");
+}
 
-   // Cria texto sobre a tabela
-   string nomeTextoAnalise = nomeLabelStatusAnalise + "_Texto";
-   if(ObjectFind(0, nomeTextoAnalise) >= 0)
-      ObjectDelete(0, nomeTextoAnalise);
+//+------------------------------------------------------------------+
+//| Função para criar tabela profissional                            |
+//+------------------------------------------------------------------+
+void CriarTabelaProfissional(string nome, int posX, int posY,
+                             string titulo, string texto,
+                             color corHeader, color corFundo, color corBorda,
+                             color corTitulo, color corTexto)
+{
+   string prefixo = "Tabela_" + nome + "_";
 
-   if(ObjectCreate(0, nomeTextoAnalise, OBJ_LABEL, 0, 0, 0))
-   {
-      ObjectSetInteger(0, nomeTextoAnalise, OBJPROP_CORNER, CORNER_RIGHT_UPPER);
-      ObjectSetInteger(0, nomeTextoAnalise, OBJPROP_XDISTANCE, TabelaPosX + 10);
-      ObjectSetInteger(0, nomeTextoAnalise, OBJPROP_YDISTANCE, TabelaPosY + 8);
-      ObjectSetInteger(0, nomeTextoAnalise, OBJPROP_COLOR, clrWhite);
-      ObjectSetInteger(0, nomeTextoAnalise, OBJPROP_FONTSIZE, 10);
-      ObjectSetString(0, nomeTextoAnalise, OBJPROP_FONT, "Arial Bold");
-      ObjectSetString(0, nomeTextoAnalise, OBJPROP_TEXT, "Análise: INATIVA");
-      ObjectSetInteger(0, nomeTextoAnalise, OBJPROP_SELECTABLE, false);
-      ObjectSetInteger(0, nomeTextoAnalise, OBJPROP_HIDDEN, false);
-      ObjectSetInteger(0, nomeTextoAnalise, OBJPROP_ZORDER, 11);
-      ObjectSetInteger(0, nomeTextoAnalise, OBJPROP_ANCHOR, ANCHOR_RIGHT);
-   }
+   // Remove objetos anteriores se existirem
+   ObjectDelete(0, prefixo + "Sombra");
+   ObjectDelete(0, prefixo + "Header");
+   ObjectDelete(0, prefixo + "Corpo");
+   ObjectDelete(0, prefixo + "Separador");
+   ObjectDelete(0, prefixo + "Titulo");
+   ObjectDelete(0, prefixo + "Texto");
 
-   // === TABELA STATUS TRAVAMENTO ===
-   if(ObjectFind(0, nomeLabelStatusTravamento) >= 0)
-      ObjectDelete(0, nomeLabelStatusTravamento);
+   //--- Criar sombra (destaque 3D)
+   ObjectCreate(0, prefixo + "Sombra", OBJ_RECTANGLE_LABEL, 0, 0, 0);
+   ObjectSetInteger(0, prefixo + "Sombra", OBJPROP_CORNER, CORNER_RIGHT_UPPER);
+   ObjectSetInteger(0, prefixo + "Sombra", OBJPROP_XDISTANCE, posX + 3);
+   ObjectSetInteger(0, prefixo + "Sombra", OBJPROP_YDISTANCE, posY + 3);
+   ObjectSetInteger(0, prefixo + "Sombra", OBJPROP_XSIZE, TabelaLargura);
+   ObjectSetInteger(0, prefixo + "Sombra", OBJPROP_YSIZE, TabelaAltura);
+   ObjectSetInteger(0, prefixo + "Sombra", OBJPROP_BGCOLOR, C'20,20,20');
+   ObjectSetInteger(0, prefixo + "Sombra", OBJPROP_BORDER_TYPE, BORDER_FLAT);
+   ObjectSetInteger(0, prefixo + "Sombra", OBJPROP_BACK, false);
+   ObjectSetInteger(0, prefixo + "Sombra", OBJPROP_SELECTABLE, false);
+   ObjectSetInteger(0, prefixo + "Sombra", OBJPROP_SELECTED, false);
+   ObjectSetInteger(0, prefixo + "Sombra", OBJPROP_HIDDEN, true);
+   ObjectSetInteger(0, prefixo + "Sombra", OBJPROP_ZORDER, 0);
 
-   if(!ObjectCreate(0, nomeLabelStatusTravamento, OBJ_RECTANGLE_LABEL, 0, 0, 0))
-   {
-      Print("ERRO ao criar label status travamento. Erro: ", GetLastError());
-      return;
-   }
+   //--- Criar cabeçalho
+   ObjectCreate(0, prefixo + "Header", OBJ_RECTANGLE_LABEL, 0, 0, 0);
+   ObjectSetInteger(0, prefixo + "Header", OBJPROP_CORNER, CORNER_RIGHT_UPPER);
+   ObjectSetInteger(0, prefixo + "Header", OBJPROP_XDISTANCE, posX);
+   ObjectSetInteger(0, prefixo + "Header", OBJPROP_YDISTANCE, posY);
+   ObjectSetInteger(0, prefixo + "Header", OBJPROP_XSIZE, TabelaLargura);
+   ObjectSetInteger(0, prefixo + "Header", OBJPROP_YSIZE, AlturaCabecalho);
+   ObjectSetInteger(0, prefixo + "Header", OBJPROP_BGCOLOR, corHeader);
+   ObjectSetInteger(0, prefixo + "Header", OBJPROP_BORDER_TYPE, BORDER_FLAT);
+   ObjectSetInteger(0, prefixo + "Header", OBJPROP_COLOR, corBorda);
+   ObjectSetInteger(0, prefixo + "Header", OBJPROP_WIDTH, 1);
+   ObjectSetInteger(0, prefixo + "Header", OBJPROP_BACK, false);
+   ObjectSetInteger(0, prefixo + "Header", OBJPROP_SELECTABLE, false);
+   ObjectSetInteger(0, prefixo + "Header", OBJPROP_SELECTED, false);
+   ObjectSetInteger(0, prefixo + "Header", OBJPROP_HIDDEN, true);
+   ObjectSetInteger(0, prefixo + "Header", OBJPROP_ZORDER, 1);
 
-   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_CORNER, CORNER_RIGHT_UPPER);
-   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_XDISTANCE, TabelaPosX);
-   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_YDISTANCE, TabelaPosY + 35);
-   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_XSIZE, 200);
-   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_YSIZE, 30);
-   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_BGCOLOR, clrGreen);
-   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_BORDER_TYPE, BORDER_FLAT);
-   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_COLOR, clrWhite);
-   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_STYLE, STYLE_SOLID);
-   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_WIDTH, 2);
-   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_BACK, false);
-   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_SELECTABLE, false);
-   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_SELECTED, false);
-   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_HIDDEN, false);
-   ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_ZORDER, 10);
+   //--- Criar corpo
+   ObjectCreate(0, prefixo + "Corpo", OBJ_RECTANGLE_LABEL, 0, 0, 0);
+   ObjectSetInteger(0, prefixo + "Corpo", OBJPROP_CORNER, CORNER_RIGHT_UPPER);
+   ObjectSetInteger(0, prefixo + "Corpo", OBJPROP_XDISTANCE, posX);
+   ObjectSetInteger(0, prefixo + "Corpo", OBJPROP_YDISTANCE, posY + AlturaCabecalho);
+   ObjectSetInteger(0, prefixo + "Corpo", OBJPROP_XSIZE, TabelaLargura);
+   ObjectSetInteger(0, prefixo + "Corpo", OBJPROP_YSIZE, TabelaAltura - AlturaCabecalho);
+   ObjectSetInteger(0, prefixo + "Corpo", OBJPROP_BGCOLOR, corFundo);
+   ObjectSetInteger(0, prefixo + "Corpo", OBJPROP_BORDER_TYPE, BORDER_FLAT);
+   ObjectSetInteger(0, prefixo + "Corpo", OBJPROP_COLOR, corBorda);
+   ObjectSetInteger(0, prefixo + "Corpo", OBJPROP_WIDTH, 1);
+   ObjectSetInteger(0, prefixo + "Corpo", OBJPROP_BACK, false);
+   ObjectSetInteger(0, prefixo + "Corpo", OBJPROP_SELECTABLE, false);
+   ObjectSetInteger(0, prefixo + "Corpo", OBJPROP_SELECTED, false);
+   ObjectSetInteger(0, prefixo + "Corpo", OBJPROP_HIDDEN, true);
+   ObjectSetInteger(0, prefixo + "Corpo", OBJPROP_ZORDER, 1);
 
-   // Cria texto sobre a tabela de travamento
-   string nomeTextoTravamento = nomeLabelStatusTravamento + "_Texto";
-   if(ObjectFind(0, nomeTextoTravamento) >= 0)
-      ObjectDelete(0, nomeTextoTravamento);
+   //--- Criar linha separadora
+   ObjectCreate(0, prefixo + "Separador", OBJ_RECTANGLE_LABEL, 0, 0, 0);
+   ObjectSetInteger(0, prefixo + "Separador", OBJPROP_CORNER, CORNER_RIGHT_UPPER);
+   ObjectSetInteger(0, prefixo + "Separador", OBJPROP_XDISTANCE, posX);
+   ObjectSetInteger(0, prefixo + "Separador", OBJPROP_YDISTANCE, posY + AlturaCabecalho - 1);
+   ObjectSetInteger(0, prefixo + "Separador", OBJPROP_XSIZE, TabelaLargura);
+   ObjectSetInteger(0, prefixo + "Separador", OBJPROP_YSIZE, 2);
+   ObjectSetInteger(0, prefixo + "Separador", OBJPROP_BGCOLOR, corBorda);
+   ObjectSetInteger(0, prefixo + "Separador", OBJPROP_BORDER_TYPE, BORDER_FLAT);
+   ObjectSetInteger(0, prefixo + "Separador", OBJPROP_BACK, false);
+   ObjectSetInteger(0, prefixo + "Separador", OBJPROP_SELECTABLE, false);
+   ObjectSetInteger(0, prefixo + "Separador", OBJPROP_SELECTED, false);
+   ObjectSetInteger(0, prefixo + "Separador", OBJPROP_HIDDEN, true);
+   ObjectSetInteger(0, prefixo + "Separador", OBJPROP_ZORDER, 2);
 
-   if(ObjectCreate(0, nomeTextoTravamento, OBJ_LABEL, 0, 0, 0))
-   {
-      ObjectSetInteger(0, nomeTextoTravamento, OBJPROP_CORNER, CORNER_RIGHT_UPPER);
-      ObjectSetInteger(0, nomeTextoTravamento, OBJPROP_XDISTANCE, TabelaPosX + 10);
-      ObjectSetInteger(0, nomeTextoTravamento, OBJPROP_YDISTANCE, TabelaPosY + 43);
-      ObjectSetInteger(0, nomeTextoTravamento, OBJPROP_COLOR, clrWhite);
-      ObjectSetInteger(0, nomeTextoTravamento, OBJPROP_FONTSIZE, 10);
-      ObjectSetString(0, nomeTextoTravamento, OBJPROP_FONT, "Arial Bold");
-      ObjectSetString(0, nomeTextoTravamento, OBJPROP_TEXT, "Linhas: DESTRAVADAS");
-      ObjectSetInteger(0, nomeTextoTravamento, OBJPROP_SELECTABLE, false);
-      ObjectSetInteger(0, nomeTextoTravamento, OBJPROP_HIDDEN, false);
-      ObjectSetInteger(0, nomeTextoTravamento, OBJPROP_ZORDER, 11);
-      ObjectSetInteger(0, nomeTextoTravamento, OBJPROP_ANCHOR, ANCHOR_RIGHT);
-   }
+   //--- Criar título centralizado no header
+   int tituloX = posX - (TabelaLargura / 2);
+   int tituloY = posY + (AlturaCabecalho / 2) - (TamanhoFonteTitulo / 2) + 2;
+   CriarTextoTabela(prefixo + "Titulo", titulo, tituloX, tituloY,
+                    corTitulo, TamanhoFonteTitulo, NomeFonte + " Semibold");
 
-   Print("Tabelas de status criadas");
+   //--- Criar texto centralizado no corpo
+   int textoX = posX - (TabelaLargura / 2);
+   int textoY = posY + AlturaCabecalho + ((TabelaAltura - AlturaCabecalho) / 2) - (TamanhoFonteTexto / 2);
+   CriarTextoTabela(prefixo + "Texto", texto, textoX, textoY,
+                    corTexto, TamanhoFonteTexto, NomeFonte + " Bold");
+}
+
+//+------------------------------------------------------------------+
+//| Função auxiliar para criar texto nas tabelas                     |
+//+------------------------------------------------------------------+
+void CriarTextoTabela(string nome, string texto, int x, int y, color cor, int tamanho, string fonte)
+{
+   ObjectCreate(0, nome, OBJ_LABEL, 0, 0, 0);
+   ObjectSetInteger(0, nome, OBJPROP_CORNER, CORNER_RIGHT_UPPER);
+   ObjectSetInteger(0, nome, OBJPROP_ANCHOR, ANCHOR_CENTER);
+   ObjectSetInteger(0, nome, OBJPROP_XDISTANCE, x);
+   ObjectSetInteger(0, nome, OBJPROP_YDISTANCE, y);
+   ObjectSetInteger(0, nome, OBJPROP_COLOR, cor);
+   ObjectSetInteger(0, nome, OBJPROP_FONTSIZE, tamanho);
+   ObjectSetString(0, nome, OBJPROP_FONT, fonte);
+   ObjectSetString(0, nome, OBJPROP_TEXT, texto);
+   ObjectSetInteger(0, nome, OBJPROP_BACK, false);
+   ObjectSetInteger(0, nome, OBJPROP_SELECTABLE, false);
+   ObjectSetInteger(0, nome, OBJPROP_SELECTED, false);
+   ObjectSetInteger(0, nome, OBJPROP_HIDDEN, true);
+   ObjectSetInteger(0, nome, OBJPROP_ZORDER, 100);
+}
+
+//+------------------------------------------------------------------+
+//| Função para remover tabela profissional                          |
+//+------------------------------------------------------------------+
+void RemoverTabelaProfissional(string nome)
+{
+   string prefixo = "Tabela_" + nome + "_";
+   ObjectDelete(0, prefixo + "Sombra");
+   ObjectDelete(0, prefixo + "Header");
+   ObjectDelete(0, prefixo + "Corpo");
+   ObjectDelete(0, prefixo + "Separador");
+   ObjectDelete(0, prefixo + "Titulo");
+   ObjectDelete(0, prefixo + "Texto");
 }
 
 //+------------------------------------------------------------------+
@@ -1346,31 +1402,40 @@ void CriarTabelaStatus()
 //+------------------------------------------------------------------+
 void AtualizarTabelasStatus()
 {
-   string nomeTextoAnalise = nomeLabelStatusAnalise + "_Texto";
-   string nomeTextoTravamento = nomeLabelStatusTravamento + "_Texto";
-
    // Atualiza status da análise
    if(analiseAtiva)
    {
-      ObjectSetString(0, nomeTextoAnalise, OBJPROP_TEXT, "Análise: ATIVA");
-      ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_BGCOLOR, clrDarkGreen);
+      ObjectSetString(0, "Tabela_StatusAnalise_Texto", OBJPROP_TEXT, "ATIVA");
+      ObjectSetInteger(0, "Tabela_StatusAnalise_Header", OBJPROP_BGCOLOR, C'15,50,25');
+      ObjectSetInteger(0, "Tabela_StatusAnalise_Corpo", OBJPROP_BGCOLOR, C'25,60,35');
+      ObjectSetInteger(0, "Tabela_StatusAnalise_Separador", OBJPROP_BGCOLOR, C'50,205,50');
+      ObjectSetInteger(0, "Tabela_StatusAnalise_Texto", OBJPROP_COLOR, clrLime);
    }
    else
    {
-      ObjectSetString(0, nomeTextoAnalise, OBJPROP_TEXT, "Análise: INATIVA");
-      ObjectSetInteger(0, nomeLabelStatusAnalise, OBJPROP_BGCOLOR, clrDarkRed);
+      ObjectSetString(0, "Tabela_StatusAnalise_Texto", OBJPROP_TEXT, "INATIVA");
+      ObjectSetInteger(0, "Tabela_StatusAnalise_Header", OBJPROP_BGCOLOR, C'25,35,45');
+      ObjectSetInteger(0, "Tabela_StatusAnalise_Corpo", OBJPROP_BGCOLOR, C'35,45,55');
+      ObjectSetInteger(0, "Tabela_StatusAnalise_Separador", OBJPROP_BGCOLOR, C'70,130,180');
+      ObjectSetInteger(0, "Tabela_StatusAnalise_Texto", OBJPROP_COLOR, clrYellow);
    }
 
    // Atualiza status do travamento
    if(linhasTravadas)
    {
-      ObjectSetString(0, nomeTextoTravamento, OBJPROP_TEXT, "Linhas: TRAVADAS");
-      ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_BGCOLOR, clrDarkRed);
+      ObjectSetString(0, "Tabela_StatusTravamento_Texto", OBJPROP_TEXT, "TRAVADAS");
+      ObjectSetInteger(0, "Tabela_StatusTravamento_Header", OBJPROP_BGCOLOR, C'50,20,20');
+      ObjectSetInteger(0, "Tabela_StatusTravamento_Corpo", OBJPROP_BGCOLOR, C'60,30,30');
+      ObjectSetInteger(0, "Tabela_StatusTravamento_Separador", OBJPROP_BGCOLOR, C'255,100,100');
+      ObjectSetInteger(0, "Tabela_StatusTravamento_Texto", OBJPROP_COLOR, clrRed);
    }
    else
    {
-      ObjectSetString(0, nomeTextoTravamento, OBJPROP_TEXT, "Linhas: DESTRAVADAS");
-      ObjectSetInteger(0, nomeLabelStatusTravamento, OBJPROP_BGCOLOR, clrGreen);
+      ObjectSetString(0, "Tabela_StatusTravamento_Texto", OBJPROP_TEXT, "DESTRAVADAS");
+      ObjectSetInteger(0, "Tabela_StatusTravamento_Header", OBJPROP_BGCOLOR, C'20,40,30');
+      ObjectSetInteger(0, "Tabela_StatusTravamento_Corpo", OBJPROP_BGCOLOR, C'30,50,40');
+      ObjectSetInteger(0, "Tabela_StatusTravamento_Separador", OBJPROP_BGCOLOR, C'50,205,50');
+      ObjectSetInteger(0, "Tabela_StatusTravamento_Texto", OBJPROP_COLOR, clrLime);
    }
 
    ChartRedraw(0);
