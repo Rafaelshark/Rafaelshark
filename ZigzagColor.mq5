@@ -82,10 +82,13 @@ void OnInit()
    if(circle_size<1) circle_size=1;
    if(circle_size>20) circle_size=20;
 
-   PlotIndexSetInteger(1,PLOT_ARROW,159); // Círculo para quebra de alta
+   PlotIndexSetInteger(1,PLOT_ARROW,108); // Círculo grande para quebra de alta
    PlotIndexSetInteger(1,PLOT_LINE_WIDTH,circle_size);
-   PlotIndexSetInteger(2,PLOT_ARROW,159); // Círculo para quebra de baixa
+   PlotIndexSetInteger(1,PLOT_ARROW_SHIFT,-circle_size/2); // Centralizar
+
+   PlotIndexSetInteger(2,PLOT_ARROW,108); // Círculo grande para quebra de baixa
    PlotIndexSetInteger(2,PLOT_LINE_WIDTH,circle_size);
+   PlotIndexSetInteger(2,PLOT_ARROW_SHIFT,-circle_size/2); // Centralizar
 
 //--- name for DataWindow and indicator subwindow label
    string short_name=StringFormat("ZigZagColor(%d,%d,%d)",InpDepth,InpDeviation,InpBackstep);
