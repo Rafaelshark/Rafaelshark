@@ -7,33 +7,21 @@
 #property link      "https://www.mql5.com"
 //--- indicator settings
 #property indicator_chart_window
-#property indicator_buffers 8
-#property indicator_plots   4
+#property indicator_buffers 5
+#property indicator_plots   1
 #property indicator_type1   DRAW_COLOR_ZIGZAG
-#property indicator_color1  clrDodgerBlue,clrRed
-#property indicator_type2   DRAW_ARROW
-#property indicator_color2  clrYellow
-#property indicator_width2  3
-#property indicator_type3   DRAW_ARROW
-#property indicator_color3  clrRed
-#property indicator_width3  3
-#property indicator_type4   DRAW_ARROW
-#property indicator_color4  clrLime
-#property indicator_width4  3
+#property indicator_color1  clrLime,clrYellow,clrRed
+#property indicator_width1  2
 //--- input parameters
 input int  InpDepth       =12;    // Depth
 input int  InpDeviation   =5;     // Deviation
 input int  InpBackstep    =3;     // Back Step
 input bool InpShowLine    =true;  // Show ZigZag Line
 input int  InpLineWidth   =2;     // Line Width (1-5)
-input int  InpCircleSize  =5;     // Circle Size (1-20)
 //--- indicator buffers
 double ZigzagPeakBuffer[];
 double ZigzagBottomBuffer[];
 double ColorBuffer[];
-double BreakBuffer[];        // Quebra indefinida (amarelo)
-double ConfirmDownBuffer[];  // Confirmação de baixa (vermelho)
-double ConfirmUpBuffer[];    // Confirmação de alta (verde)
 double HighMapBuffer[];
 double LowMapBuffer[];
 
@@ -46,9 +34,6 @@ int HistoryHighsPos[];    // Posições dos topos
 int HistoryLowsPos[];     // Posições dos fundos
 int HighCount=0;          // Contador de topos
 int LowCount=0;           // Contador de fundos
-int TrendState=0;         // Estado da tendência: 1=alta, -1=baixa, 0=neutro/quebrado
-int BreakPos=-1;          // Posição da última quebra
-double BreakValue=0;      // Valor da última quebra
 
 enum EnSearchMode
   {
@@ -65,11 +50,8 @@ void OnInit()
    SetIndexBuffer(0,ZigzagPeakBuffer,INDICATOR_DATA);
    SetIndexBuffer(1,ZigzagBottomBuffer,INDICATOR_DATA);
    SetIndexBuffer(2,ColorBuffer,INDICATOR_COLOR_INDEX);
-   SetIndexBuffer(3,BreakBuffer,INDICATOR_DATA);
-   SetIndexBuffer(4,ConfirmDownBuffer,INDICATOR_DATA);
-   SetIndexBuffer(5,ConfirmUpBuffer,INDICATOR_DATA);
-   SetIndexBuffer(6,HighMapBuffer,INDICATOR_CALCULATIONS);
-   SetIndexBuffer(7,LowMapBuffer,INDICATOR_CALCULATIONS);
+   SetIndexBuffer(3,HighMapBuffer,INDICATOR_CALCULATIONS);
+   SetIndexBuffer(4,LowMapBuffer,INDICATOR_CALCULATIONS);
 //--- set accuracy
    IndicatorSetInteger(INDICATOR_DIGITS,_Digits);
 
@@ -84,32 +66,12 @@ void OnInit()
       PlotIndexSetInteger(0,PLOT_DRAW_TYPE,DRAW_NONE); // Ocultar linha
      }
 
-//--- configurar símbolos (círculos)
-   int circle_size=InpCircleSize;
-   if(circle_size<1) circle_size=1;
-   if(circle_size>20) circle_size=20;
-
-   PlotIndexSetInteger(1,PLOT_ARROW,108); // Círculo amarelo - quebra indefinida
-   PlotIndexSetInteger(1,PLOT_LINE_WIDTH,circle_size);
-
-   PlotIndexSetInteger(2,PLOT_ARROW,108); // Círculo vermelho - confirmação de baixa
-   PlotIndexSetInteger(2,PLOT_LINE_WIDTH,circle_size);
-
-   PlotIndexSetInteger(3,PLOT_ARROW,108); // Círculo verde - confirmação de alta
-   PlotIndexSetInteger(3,PLOT_LINE_WIDTH,circle_size);
-
 //--- name for DataWindow and indicator subwindow label
    string short_name=StringFormat("ZigZagColor(%d,%d,%d)",InpDepth,InpDeviation,InpBackstep);
    IndicatorSetString(INDICATOR_SHORTNAME,short_name);
    PlotIndexSetString(0,PLOT_LABEL,short_name);
-   PlotIndexSetString(1,PLOT_LABEL,"Quebra");
-   PlotIndexSetString(2,PLOT_LABEL,"Confirm Baixa");
-   PlotIndexSetString(3,PLOT_LABEL,"Confirm Alta");
 //--- set an empty value
    PlotIndexSetDouble(0,PLOT_EMPTY_VALUE,0.0);
-   PlotIndexSetDouble(1,PLOT_EMPTY_VALUE,0.0);
-   PlotIndexSetDouble(2,PLOT_EMPTY_VALUE,0.0);
-   PlotIndexSetDouble(3,PLOT_EMPTY_VALUE,0.0);
 //--- inicializar arrays de histórico
    ArrayResize(HistoryHighs,100);
    ArrayResize(HistoryLows,100);
@@ -149,103 +111,36 @@ void AddLowToHistory(double low_value,int pos)
    LowCount++;
   }
 //+------------------------------------------------------------------+
-//| Detecta quebra e confirmação de tendência                        |
+//| Determina cor do trecho baseado no padrão de topos e fundos      |
 //+------------------------------------------------------------------+
-void DetectTrendBreak(double new_value,bool is_high,int shift,bool mark_break=true)
+int GetTrendColor()
   {
-   if(!mark_break) return; // Só processa se for para marcar
+// 0 = Verde (alta)
+// 1 = Amarelo (indefinido)
+// 2 = Vermelho (baixa)
 
-   if(HighCount<2 || LowCount<2) return; // Precisa de pelo menos 2 topos e 2 fundos
+   if(HighCount<2 || LowCount<2) return 1; // Amarelo se não tem dados suficientes
 
-   double prev_high=HistoryHighs[HighCount-1];
-   double prev_prev_high=HistoryHighs[HighCount-2];
-   double prev_low=HistoryLows[LowCount-1];
-   double prev_prev_low=HistoryLows[LowCount-2];
+   double last_high=HistoryHighs[HighCount-1];
+   double prev_high=HistoryHighs[HighCount-2];
+   double last_low=HistoryLows[LowCount-1];
+   double prev_low=HistoryLows[LowCount-2];
 
-   if(is_high)
-     {
-      // Novo TOPO sendo adicionado
-      // Verificar se forma ALTA confirmada: topos e fundos crescentes
-      if(new_value>prev_high && prev_low>prev_prev_low)
-        {
-         // Se estava quebrado (estado 0), agora confirma que virou ALTA
-         if(TrendState==0 && BreakPos>=0)
-           {
-            ConfirmUpBuffer[shift]=new_value; // Círculo verde ao lado
-            BreakPos=-1;
-           }
-         TrendState=1; // Agora está em alta confirmada
-        }
-      // QUEBRA de alta: topo menor que o anterior
-      else if(TrendState==1 && new_value<prev_high)
-        {
-         BreakBuffer[shift]=new_value; // Círculo amarelo
-         BreakPos=shift;
-         BreakValue=new_value;
-         TrendState=0; // Quebrou, indefinido
-        }
-      // QUEBRA de baixa: topo maior que o anterior
-      else if(TrendState==-1 && new_value>prev_high)
-        {
-         BreakBuffer[shift]=new_value; // Círculo amarelo
-         BreakPos=shift;
-         BreakValue=new_value;
-         TrendState=0; // Quebrou, indefinido
-        }
-      // Verificar se forma BAIXA confirmada: topos e fundos decrescentes
-      else if(new_value<prev_high && prev_low<prev_prev_low)
-        {
-         // Se estava quebrado, agora confirma que virou BAIXA
-         if(TrendState==0 && BreakPos>=0)
-           {
-            ConfirmDownBuffer[shift]=new_value; // Círculo vermelho ao lado
-            BreakPos=-1;
-           }
-         TrendState=-1; // Agora está em baixa confirmada
-        }
-     }
-   else
-     {
-      // Novo FUNDO sendo adicionado
-      // Verificar se forma ALTA confirmada: fundos e topos crescentes
-      if(new_value>prev_low && prev_high>prev_prev_high)
-        {
-         // Se estava quebrado, agora confirma que virou ALTA
-         if(TrendState==0 && BreakPos>=0)
-           {
-            ConfirmUpBuffer[shift]=new_value; // Círculo verde ao lado
-            BreakPos=-1;
-           }
-         TrendState=1; // Agora está em alta confirmada
-        }
-      // QUEBRA de alta: fundo menor que o anterior
-      else if(TrendState==1 && new_value<prev_low)
-        {
-         BreakBuffer[shift]=new_value; // Círculo amarelo
-         BreakPos=shift;
-         BreakValue=new_value;
-         TrendState=0; // Quebrou, indefinido
-        }
-      // Verificar se forma BAIXA confirmada: fundos e topos decrescentes
-      else if(new_value<prev_low && prev_high<prev_prev_high)
-        {
-         // Se estava quebrado, agora confirma que virou BAIXA
-         if(TrendState==0 && BreakPos>=0)
-           {
-            ConfirmDownBuffer[shift]=new_value; // Círculo vermelho ao lado
-            BreakPos=-1;
-           }
-         TrendState=-1; // Agora está em baixa confirmada
-        }
-      // QUEBRA de baixa: fundo maior que o anterior
-      else if(TrendState==-1 && new_value>prev_low)
-        {
-         BreakBuffer[shift]=new_value; // Círculo amarelo
-         BreakPos=shift;
-         BreakValue=new_value;
-         TrendState=0; // Quebrou, indefinido
-        }
-     }
+   bool highs_rising=(last_high>prev_high);
+   bool lows_rising=(last_low>prev_low);
+   bool highs_falling=(last_high<prev_high);
+   bool lows_falling=(last_low<prev_low);
+
+// VERDE: fundos e topos crescentes = tendência de alta
+   if(highs_rising && lows_rising)
+      return 0;
+
+// VERMELHO: fundos e topos decrescentes = tendência de baixa
+   if(highs_falling && lows_falling)
+      return 2;
+
+// AMARELO: padrão indefinido/quebrado
+   return 1;
   }
 //+------------------------------------------------------------------+
 //| ZigZag calculation                                               |
@@ -276,10 +171,7 @@ int OnCalculate(const int rates_total,
       ArrayInitialize(ZigzagBottomBuffer,0.0);
       ArrayInitialize(HighMapBuffer,0.0);
       ArrayInitialize(LowMapBuffer,0.0);
-      ArrayInitialize(ColorBuffer,0);
-      ArrayInitialize(BreakBuffer,0.0);
-      ArrayInitialize(ConfirmDownBuffer,0.0);
-      ArrayInitialize(ConfirmUpBuffer,0.0);
+      ArrayInitialize(ColorBuffer,1); // Amarelo por padrão
       //--- resetar histórico
       ArrayInitialize(HistoryHighs,0.0);
       ArrayInitialize(HistoryLows,0.0);
@@ -287,9 +179,6 @@ int OnCalculate(const int rates_total,
       ArrayInitialize(HistoryLowsPos,0);
       HighCount=0;
       LowCount=0;
-      TrendState=0;
-      BreakPos=-1;
-      BreakValue=0;
       //--- start calculation from bar number InpDepth
       start=InpDepth-1;
      }
@@ -312,7 +201,6 @@ int OnCalculate(const int rates_total,
       //--- Reconstruir histórico de extremos até o ponto de recálculo
       HighCount=0;
       LowCount=0;
-      TrendState=0;
       for(int j=0;j<start;j++)
         {
          if(ZigzagPeakBuffer[j]!=0)
@@ -323,27 +211,6 @@ int OnCalculate(const int rates_total,
            {
             AddLowToHistory(ZigzagBottomBuffer[j],j);
            }
-        }
-
-      //--- Recalcular estado da tendência baseado no histórico
-      if(HighCount>=2 && LowCount>=2)
-        {
-         double last_high=HistoryHighs[HighCount-1];
-         double prev_high=HistoryHighs[HighCount-2];
-         double last_low=HistoryLows[LowCount-1];
-         double prev_low=HistoryLows[LowCount-2];
-
-         bool highs_rising=(last_high>prev_high);
-         bool lows_rising=(last_low>prev_low);
-         bool highs_falling=(last_high<prev_high);
-         bool lows_falling=(last_low<prev_low);
-
-         if(highs_rising && lows_rising)
-            TrendState=1;  // Tendência de alta
-         else if(highs_falling && lows_falling)
-            TrendState=-1; // Tendência de baixa
-         else
-            TrendState=0;  // Neutro/indefinido
         }
 
       //--- what type of extremum we search for
@@ -364,9 +231,7 @@ int OnCalculate(const int rates_total,
          ZigzagBottomBuffer[i]=0.0;
          LowMapBuffer[i]      =0.0;
          HighMapBuffer[i]     =0.0;
-         BreakBuffer[i]       =0.0;
-         ConfirmDownBuffer[i] =0.0;
-         ConfirmUpBuffer[i]   =0.0;
+         ColorBuffer[i]       =1; // Amarelo por padrão
         }
      }
 //--- searching for high and low extremes
@@ -447,13 +312,8 @@ int OnCalculate(const int rates_total,
                   last_high_pos=shift;
                   extreme_search=-1;
                   ZigzagPeakBuffer[shift]=last_high;
-
-                  // Só marca quebra se estiver em barra confirmada (não muito recente)
-                  bool is_confirmed=(shift<rates_total-(InpDepth*2));
-                  DetectTrendBreak(last_high,true,shift,is_confirmed);
-                  ColorBuffer[shift]=0;
                   AddHighToHistory(last_high,shift);
-
+                  ColorBuffer[shift]=GetTrendColor();
                   res=1;
                  }
                if(LowMapBuffer[shift]!=0)
@@ -462,13 +322,8 @@ int OnCalculate(const int rates_total,
                   last_low_pos=shift;
                   extreme_search=1;
                   ZigzagBottomBuffer[shift]=last_low;
-
-                  // Só marca quebra se estiver em barra confirmada (não muito recente)
-                  bool is_confirmed=(shift<rates_total-(InpDepth*2));
-                  DetectTrendBreak(last_low,false,shift,is_confirmed);
-                  ColorBuffer[shift]=1;
                   AddLowToHistory(last_low,shift);
-
+                  ColorBuffer[shift]=GetTrendColor();
                   res=1;
                  }
               }
@@ -478,9 +333,6 @@ int OnCalculate(const int rates_total,
                HighMapBuffer[shift]==0.0)
               {
                ZigzagBottomBuffer[last_low_pos]=0.0;
-               BreakBuffer[last_low_pos]=0.0;
-               ConfirmDownBuffer[last_low_pos]=0.0;
-               ConfirmUpBuffer[last_low_pos]=0.0;
                last_low_pos=shift;
                last_low=LowMapBuffer[shift];
                ZigzagBottomBuffer[shift]=last_low;
@@ -488,11 +340,8 @@ int OnCalculate(const int rates_total,
                // Remover o último fundo do histórico e adicionar o novo
                if(LowCount>0)
                   LowCount--;
-               // Só marca quebra se estiver em barra confirmada
-               bool is_confirmed=(shift<rates_total-(InpDepth*2));
-               DetectTrendBreak(last_low,false,shift,is_confirmed);
-               ColorBuffer[shift]=1;
                AddLowToHistory(last_low,shift);
+               ColorBuffer[shift]=GetTrendColor();
 
                res=1;
               }
@@ -502,11 +351,8 @@ int OnCalculate(const int rates_total,
                last_high_pos=shift;
                ZigzagPeakBuffer[shift]=last_high;
 
-               // Só marca quebra se estiver em barra confirmada
-               bool is_confirmed=(shift<rates_total-(InpDepth*2));
-               DetectTrendBreak(last_high,true,shift,is_confirmed);
-               ColorBuffer[shift]=0;
                AddHighToHistory(last_high,shift);
+               ColorBuffer[shift]=GetTrendColor();
 
                extreme_search=Bottom;
                res=1;
@@ -518,9 +364,6 @@ int OnCalculate(const int rates_total,
                LowMapBuffer[shift]==0.0)
               {
                ZigzagPeakBuffer[last_high_pos]=0.0;
-               BreakBuffer[last_high_pos]=0.0;
-               ConfirmDownBuffer[last_high_pos]=0.0;
-               ConfirmUpBuffer[last_high_pos]=0.0;
                last_high_pos=shift;
                last_high=HighMapBuffer[shift];
                ZigzagPeakBuffer[shift]=last_high;
@@ -528,11 +371,8 @@ int OnCalculate(const int rates_total,
                // Remover o último topo do histórico e adicionar o novo
                if(HighCount>0)
                   HighCount--;
-               // Só marca quebra se estiver em barra confirmada
-               bool is_confirmed=(shift<rates_total-(InpDepth*2));
-               DetectTrendBreak(last_high,true,shift,is_confirmed);
-               ColorBuffer[shift]=0;
                AddHighToHistory(last_high,shift);
+               ColorBuffer[shift]=GetTrendColor();
               }
             if(LowMapBuffer[shift]!=0.0 && HighMapBuffer[shift]==0.0)
               {
@@ -540,11 +380,8 @@ int OnCalculate(const int rates_total,
                last_low_pos=shift;
                ZigzagBottomBuffer[shift]=last_low;
 
-               // Só marca quebra se estiver em barra confirmada
-               bool is_confirmed=(shift<rates_total-(InpDepth*2));
-               DetectTrendBreak(last_low,false,shift,is_confirmed);
-               ColorBuffer[shift]=1;
                AddLowToHistory(last_low,shift);
+               ColorBuffer[shift]=GetTrendColor();
 
                extreme_search=Peak;
               }
