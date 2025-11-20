@@ -122,7 +122,7 @@ void AddLowToHistory(double low_value,int pos)
 //+------------------------------------------------------------------+
 //| Detecta quebra de tendência                                      |
 //+------------------------------------------------------------------+
-void DetectTrendBreak(double new_value,bool is_high,int shift)
+void DetectTrendBreak(double new_value,bool is_high,int shift,bool mark_break=true)
   {
 // Verifica se temos extremos suficientes para análise
    if(HighCount<2 || LowCount<2)
@@ -170,7 +170,8 @@ void DetectTrendBreak(double new_value,bool is_high,int shift)
       // QUEBRA DE ALTA: estava em alta e topo quebrou para baixo
       if(TrendState==1 && new_high_lower)
         {
-         BreakUpBuffer[shift]=new_value;
+         if(mark_break) // Só marca se permitido
+            BreakUpBuffer[shift]=new_value;
          TrendState=0; // Tendência quebrada, estado neutro
          return;
         }
@@ -178,7 +179,8 @@ void DetectTrendBreak(double new_value,bool is_high,int shift)
       // QUEBRA DE BAIXA: estava em baixa e topo quebrou para cima
       if(TrendState==-1 && new_high_higher)
         {
-         BreakDownBuffer[shift]=new_value;
+         if(mark_break) // Só marca se permitido
+            BreakDownBuffer[shift]=new_value;
          TrendState=0; // Tendência quebrada, estado neutro
          return;
         }
@@ -201,7 +203,8 @@ void DetectTrendBreak(double new_value,bool is_high,int shift)
       // QUEBRA DE ALTA: estava em alta e fundo quebrou para baixo
       if(TrendState==1 && new_low_lower)
         {
-         BreakUpBuffer[shift]=new_value;
+         if(mark_break) // Só marca se permitido
+            BreakUpBuffer[shift]=new_value;
          TrendState=0; // Tendência quebrada, estado neutro
          return;
         }
@@ -209,7 +212,8 @@ void DetectTrendBreak(double new_value,bool is_high,int shift)
       // QUEBRA DE BAIXA: estava em baixa e fundo quebrou para cima
       if(TrendState==-1 && new_low_higher)
         {
-         BreakDownBuffer[shift]=new_value;
+         if(mark_break) // Só marca se permitido
+            BreakDownBuffer[shift]=new_value;
          TrendState=0; // Tendência quebrada, estado neutro
          return;
         }
@@ -421,7 +425,9 @@ int OnCalculate(const int rates_total,
                   extreme_search=-1;
                   ZigzagPeakBuffer[shift]=last_high;
 
-                  DetectTrendBreak(last_high,true,shift);
+                  // Só marca quebra se estiver em barra confirmada (não muito recente)
+                  bool is_confirmed=(shift<rates_total-(InpDepth*2));
+                  DetectTrendBreak(last_high,true,shift,is_confirmed);
                   ColorBuffer[shift]=0;
                   AddHighToHistory(last_high,shift);
 
@@ -434,7 +440,9 @@ int OnCalculate(const int rates_total,
                   extreme_search=1;
                   ZigzagBottomBuffer[shift]=last_low;
 
-                  DetectTrendBreak(last_low,false,shift);
+                  // Só marca quebra se estiver em barra confirmada (não muito recente)
+                  bool is_confirmed=(shift<rates_total-(InpDepth*2));
+                  DetectTrendBreak(last_low,false,shift,is_confirmed);
                   ColorBuffer[shift]=1;
                   AddLowToHistory(last_low,shift);
 
@@ -456,7 +464,9 @@ int OnCalculate(const int rates_total,
                // Remover o último fundo do histórico e adicionar o novo
                if(LowCount>0)
                   LowCount--;
-               DetectTrendBreak(last_low,false,shift);
+               // Só marca quebra se estiver em barra confirmada
+               bool is_confirmed=(shift<rates_total-(InpDepth*2));
+               DetectTrendBreak(last_low,false,shift,is_confirmed);
                ColorBuffer[shift]=1;
                AddLowToHistory(last_low,shift);
 
@@ -468,7 +478,9 @@ int OnCalculate(const int rates_total,
                last_high_pos=shift;
                ZigzagPeakBuffer[shift]=last_high;
 
-               DetectTrendBreak(last_high,true,shift);
+               // Só marca quebra se estiver em barra confirmada
+               bool is_confirmed=(shift<rates_total-(InpDepth*2));
+               DetectTrendBreak(last_high,true,shift,is_confirmed);
                ColorBuffer[shift]=0;
                AddHighToHistory(last_high,shift);
 
@@ -491,7 +503,9 @@ int OnCalculate(const int rates_total,
                // Remover o último topo do histórico e adicionar o novo
                if(HighCount>0)
                   HighCount--;
-               DetectTrendBreak(last_high,true,shift);
+               // Só marca quebra se estiver em barra confirmada
+               bool is_confirmed=(shift<rates_total-(InpDepth*2));
+               DetectTrendBreak(last_high,true,shift,is_confirmed);
                ColorBuffer[shift]=0;
                AddHighToHistory(last_high,shift);
               }
@@ -501,7 +515,9 @@ int OnCalculate(const int rates_total,
                last_low_pos=shift;
                ZigzagBottomBuffer[shift]=last_low;
 
-               DetectTrendBreak(last_low,false,shift);
+               // Só marca quebra se estiver em barra confirmada
+               bool is_confirmed=(shift<rates_total-(InpDepth*2));
+               DetectTrendBreak(last_low,false,shift,is_confirmed);
                ColorBuffer[shift]=1;
                AddLowToHistory(last_low,shift);
 
