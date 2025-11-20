@@ -122,6 +122,44 @@ void AddPoint(double value, int position, int type)
       g_pointCount++;
   }
 //+------------------------------------------------------------------+
+//| Rebuild point history from existing ZigZag                       |
+//+------------------------------------------------------------------+
+void RebuildPointHistory(int rates_total)
+  {
+//--- Reset counter
+   g_pointCount=0;
+
+//--- Clear points array
+   for(int i=0; i<4; i++)
+     {
+      g_points[i].value=0;
+      g_points[i].position=0;
+      g_points[i].type=0;
+     }
+
+//--- Search backwards from the most recent bar to find last 4 points
+   int pointsFound=0;
+   for(int i=rates_total-1; i>=0 && pointsFound<4; i--)
+     {
+      if(ZigzagPeakBuffer[i]!=0)
+        {
+         g_points[pointsFound].value=ZigzagPeakBuffer[i];
+         g_points[pointsFound].position=i;
+         g_points[pointsFound].type=1; // Peak
+         pointsFound++;
+        }
+      else if(ZigzagBottomBuffer[i]!=0)
+        {
+         g_points[pointsFound].value=ZigzagBottomBuffer[i];
+         g_points[pointsFound].position=i;
+         g_points[pointsFound].type=-1; // Bottom
+         pointsFound++;
+        }
+     }
+
+   g_pointCount=pointsFound;
+  }
+//+------------------------------------------------------------------+
 //| Check for uptrend break                                          |
 //+------------------------------------------------------------------+
 bool CheckUptrendBreak()
@@ -129,16 +167,18 @@ bool CheckUptrendBreak()
    if(g_pointCount<4)
       return false;
 
-//--- Padrão 1: Fundo -> Topo -> Fundo -> Topo
-//--- Verifica se temos: Bottom(3) -> Peak(2) -> Bottom(1) -> Peak(0)
+//--- Padrão 1: Fundo -> Topo -> Fundo MAIOR -> Topo
+//--- Os 3 primeiros pontos: Bottom(3) -> Peak(2) -> Bottom(1) onde Bottom(1) > Bottom(3)
+//--- Isso JÁ caracteriza tendência de alta
+//--- Quebra ocorre se: Peak(0) <= Peak(2) no 4º ponto
    if(g_points[3].type==-1 && g_points[2].type==1 &&
       g_points[1].type==-1 && g_points[0].type==1)
      {
-      //--- Verifica se estava em tendência de alta
-      //--- Fundo[1] > Fundo[3] E Topo[2] crescente
+      //--- Verifica se os 3 primeiros pontos formam tendência de alta
+      //--- Fundo[1] > Fundo[3] = TENDÊNCIA DE ALTA
       if(g_points[1].value>g_points[3].value)
         {
-         //--- Quebra: Topo[0] <= Topo[2] (topo atual menor ou igual ao anterior)
+         //--- Quebra: Topo[0] <= Topo[2] (topo atual não superou o anterior)
          if(g_points[0].value<=g_points[2].value)
            {
             return true;
@@ -146,16 +186,18 @@ bool CheckUptrendBreak()
         }
      }
 
-//--- Padrão 2: Topo -> Fundo -> Topo -> Fundo
-//--- Verifica se temos: Peak(3) -> Bottom(2) -> Peak(1) -> Bottom(0)
+//--- Padrão 2: Topo -> Fundo -> Topo MAIOR -> Fundo
+//--- Os 3 primeiros pontos: Peak(3) -> Bottom(2) -> Peak(1) onde Peak(1) > Peak(3)
+//--- Isso JÁ caracteriza tendência de alta
+//--- Quebra ocorre se: Bottom(0) <= Bottom(2) no 4º ponto
    if(g_points[3].type==1 && g_points[2].type==-1 &&
       g_points[1].type==1 && g_points[0].type==-1)
      {
-      //--- Verifica se estava em tendência de alta
-      //--- Topo[1] > Topo[3] E Fundo[2] crescente
+      //--- Verifica se os 3 primeiros pontos formam tendência de alta
+      //--- Topo[1] > Topo[3] = TENDÊNCIA DE ALTA
       if(g_points[1].value>g_points[3].value)
         {
-         //--- Quebra: Fundo[0] <= Fundo[2] (fundo atual menor ou igual ao anterior)
+         //--- Quebra: Fundo[0] <= Fundo[2] (fundo atual não superou o anterior)
          if(g_points[0].value<=g_points[2].value)
            {
             return true;
@@ -304,6 +346,7 @@ int OnCalculate(const int rates_total,
       last_low=cur_low;
       last_high=cur_high;
      }
+
 //--- final selection of extreme points for ZigZag
    for(shift=start; shift<rates_total && !IsStopped(); shift++)
      {
@@ -319,8 +362,9 @@ int OnCalculate(const int rates_total,
                   last_high_pos=shift;
                   extreme_search=-1;
                   ZigzagPeakBuffer[shift]=last_high;
-                  ColorBuffer[shift]=0;
+                  RebuildPointHistory(shift+1); // Reconstrói histórico
                   AddPoint(last_high,shift,1); // Adiciona ponto Topo
+                  ColorBuffer[shift]=0; // Primeiro ponto sempre azul
                   res=1;
                  }
                if(LowMapBuffer[shift]!=0)
@@ -329,8 +373,9 @@ int OnCalculate(const int rates_total,
                   last_low_pos=shift;
                   extreme_search=1;
                   ZigzagBottomBuffer[shift]=last_low;
-                  ColorBuffer[shift]=1;
+                  RebuildPointHistory(shift+1); // Reconstrói histórico
                   AddPoint(last_low,shift,-1); // Adiciona ponto Fundo
+                  ColorBuffer[shift]=1; // Primeiro ponto sempre vermelho
                   res=1;
                  }
               }
@@ -342,8 +387,9 @@ int OnCalculate(const int rates_total,
                last_low_pos=shift;
                last_low=LowMapBuffer[shift];
                ZigzagBottomBuffer[shift]=last_low;
-               ColorBuffer[shift]=1;
+               RebuildPointHistory(shift+1); // Reconstrói histórico
                AddPoint(last_low,shift,-1); // Adiciona ponto Fundo
+               ColorBuffer[shift]=1; // Fundo sempre vermelho (não é quebra)
                res=1;
               }
             if(HighMapBuffer[shift]!=0.0 && LowMapBuffer[shift]==0.0)
@@ -351,7 +397,8 @@ int OnCalculate(const int rates_total,
                last_high=HighMapBuffer[shift];
                last_high_pos=shift;
                ZigzagPeakBuffer[shift]=last_high;
-               //--- Verifica quebra de tendência
+               //--- Reconstrói histórico e verifica quebra de tendência
+               RebuildPointHistory(shift+1); // Reconstrói até o ponto atual
                AddPoint(last_high,shift,1); // Adiciona ponto Topo
                if(CheckUptrendBreak())
                   ColorBuffer[shift]=2; // Amarelo - Quebra de tendência
@@ -368,15 +415,17 @@ int OnCalculate(const int rates_total,
                last_high_pos=shift;
                last_high=HighMapBuffer[shift];
                ZigzagPeakBuffer[shift]=last_high;
-               ColorBuffer[shift]=0;
+               RebuildPointHistory(shift+1); // Reconstrói histórico
                AddPoint(last_high,shift,1); // Adiciona ponto Topo
+               ColorBuffer[shift]=0; // Topo sempre azul (não é quebra)
               }
             if(LowMapBuffer[shift]!=0.0 && HighMapBuffer[shift]==0.0)
               {
                last_low=LowMapBuffer[shift];
                last_low_pos=shift;
                ZigzagBottomBuffer[shift]=last_low;
-               //--- Verifica quebra de tendência
+               //--- Reconstrói histórico e verifica quebra de tendência
+               RebuildPointHistory(shift+1); // Reconstrói até o ponto atual
                AddPoint(last_low,shift,-1); // Adiciona ponto Fundo
                if(CheckUptrendBreak())
                   ColorBuffer[shift]=2; // Amarelo - Quebra de tendência
