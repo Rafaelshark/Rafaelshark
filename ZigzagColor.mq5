@@ -41,6 +41,7 @@ int HistoryHighsPos[];    // Posições dos topos
 int HistoryLowsPos[];     // Posições dos fundos
 int HighCount=0;          // Contador de topos
 int LowCount=0;           // Contador de fundos
+int TrendState=0;         // Estado da tendência: 1=alta, -1=baixa, 0=neutro
 
 enum EnSearchMode
   {
@@ -121,74 +122,107 @@ void AddLowToHistory(double low_value,int pos)
 //+------------------------------------------------------------------+
 //| Detecta quebra de tendência                                      |
 //+------------------------------------------------------------------+
-int DetectTrendBreak(double new_value,bool is_high,int shift)
+void DetectTrendBreak(double new_value,bool is_high,int shift)
   {
-// 0 = sem quebra
-// 1 = quebra de tendência de alta (símbolo vermelho)
-// 2 = quebra de tendência de baixa (símbolo verde)
+// Verifica se temos extremos suficientes para análise
+   if(HighCount<2 || LowCount<2)
+     {
+      // Ainda não temos dados suficientes, atualizar estado sem marcar quebra
+      if(HighCount>=2)
+        {
+         double prev_high=HistoryHighs[HighCount-1];
+         double prev_prev_high=HistoryHighs[HighCount-2];
+         if(prev_high<prev_prev_high)
+            TrendState=-1; // Tendência de baixa
+         else if(prev_high>prev_prev_high)
+            TrendState=1;  // Tendência de alta
+        }
+      if(LowCount>=2)
+        {
+         double prev_low=HistoryLows[LowCount-1];
+         double prev_prev_low=HistoryLows[LowCount-2];
+         if(prev_low>prev_prev_low)
+            TrendState=1;  // Tendência de alta
+         else if(prev_low<prev_prev_low)
+            TrendState=-1; // Tendência de baixa
+        }
+      return;
+     }
+
+// Pegar últimos extremos
+   double prev_high=HistoryHighs[HighCount-1];
+   double prev_prev_high=HistoryHighs[HighCount-2];
+   double prev_low=HistoryLows[LowCount-1];
+   double prev_prev_low=HistoryLows[LowCount-2];
+
+// Verificar padrão atual
+   bool highs_rising=(prev_high>prev_prev_high);
+   bool lows_rising=(prev_low>prev_prev_low);
+   bool highs_falling=(prev_high<prev_prev_high);
+   bool lows_falling=(prev_low<prev_prev_low);
 
    if(is_high)
      {
       // Novo topo sendo adicionado
-      if(HighCount>=2 && LowCount>=1)
-        {
-         double prev_high=HistoryHighs[HighCount-1];
-         double prev_prev_high=HistoryHighs[HighCount-2];
+      bool new_high_lower=(new_value<prev_high);
+      bool new_high_higher=(new_value>prev_high);
 
-         // Verifica se estávamos em tendência de alta (topos crescentes)
-         if(prev_high>prev_prev_high)
-           {
-            // Se o novo topo é menor que o anterior = quebra de tendência de alta
-            if(new_value<prev_high)
-              {
-               BreakUpBuffer[shift]=new_value;
-               return 1; // Quebra de alta
-              }
-           }
-         // Verifica se estávamos em tendência de baixa (topos decrescentes)
-         else if(prev_high<prev_prev_high)
-           {
-            // Se o novo topo é maior que o anterior = quebra de tendência de baixa
-            if(new_value>prev_high)
-              {
-               BreakDownBuffer[shift]=new_value;
-               return 2; // Quebra de baixa
-              }
-           }
+      // QUEBRA DE ALTA: estava em alta e topo quebrou para baixo
+      if(TrendState==1 && new_high_lower)
+        {
+         BreakUpBuffer[shift]=new_value;
+         TrendState=0; // Tendência quebrada, estado neutro
+         return;
+        }
+
+      // QUEBRA DE BAIXA: estava em baixa e topo quebrou para cima
+      if(TrendState==-1 && new_high_higher)
+        {
+         BreakDownBuffer[shift]=new_value;
+         TrendState=0; // Tendência quebrada, estado neutro
+         return;
+        }
+
+      // ESTABELECER TENDÊNCIA: se está neutro, verifica se estabelece tendência
+      if(TrendState==0)
+        {
+         if(new_high_higher && lows_rising)
+            TrendState=1;  // Estabelece tendência de alta
+         else if(new_high_lower && lows_falling)
+            TrendState=-1; // Estabelece tendência de baixa
         }
      }
    else
      {
       // Novo fundo sendo adicionado
-      if(LowCount>=2 && HighCount>=1)
-        {
-         double prev_low=HistoryLows[LowCount-1];
-         double prev_prev_low=HistoryLows[LowCount-2];
+      bool new_low_lower=(new_value<prev_low);
+      bool new_low_higher=(new_value>prev_low);
 
-         // Verifica se estávamos em tendência de alta (fundos crescentes)
-         if(prev_low>prev_prev_low)
-           {
-            // Se o novo fundo é menor que o anterior = quebra de tendência de alta
-            if(new_value<prev_low)
-              {
-               BreakUpBuffer[shift]=new_value;
-               return 1; // Quebra de alta
-              }
-           }
-         // Verifica se estávamos em tendência de baixa (fundos decrescentes)
-         else if(prev_low<prev_prev_low)
-           {
-            // Se o novo fundo é maior que o anterior = quebra de tendência de baixa
-            if(new_value>prev_low)
-              {
-               BreakDownBuffer[shift]=new_value;
-               return 2; // Quebra de baixa
-              }
-           }
+      // QUEBRA DE ALTA: estava em alta e fundo quebrou para baixo
+      if(TrendState==1 && new_low_lower)
+        {
+         BreakUpBuffer[shift]=new_value;
+         TrendState=0; // Tendência quebrada, estado neutro
+         return;
+        }
+
+      // QUEBRA DE BAIXA: estava em baixa e fundo quebrou para cima
+      if(TrendState==-1 && new_low_higher)
+        {
+         BreakDownBuffer[shift]=new_value;
+         TrendState=0; // Tendência quebrada, estado neutro
+         return;
+        }
+
+      // ESTABELECER TENDÊNCIA: se está neutro, verifica se estabelece tendência
+      if(TrendState==0)
+        {
+         if(new_low_higher && highs_rising)
+            TrendState=1;  // Estabelece tendência de alta
+         else if(new_low_lower && highs_falling)
+            TrendState=-1; // Estabelece tendência de baixa
         }
      }
-
-   return 0; // Sem quebra
   }
 //+------------------------------------------------------------------+
 //| ZigZag calculation                                               |
@@ -229,6 +263,7 @@ int OnCalculate(const int rates_total,
       ArrayInitialize(HistoryLowsPos,0);
       HighCount=0;
       LowCount=0;
+      TrendState=0;
       //--- start calculation from bar number InpDepth
       start=InpDepth-1;
      }
@@ -251,6 +286,7 @@ int OnCalculate(const int rates_total,
       //--- Reconstruir histórico de extremos até o ponto de recálculo
       HighCount=0;
       LowCount=0;
+      TrendState=0;
       for(int j=0;j<start;j++)
         {
          if(ZigzagPeakBuffer[j]!=0)
@@ -261,6 +297,27 @@ int OnCalculate(const int rates_total,
            {
             AddLowToHistory(ZigzagBottomBuffer[j],j);
            }
+        }
+
+      //--- Recalcular estado da tendência baseado no histórico
+      if(HighCount>=2 && LowCount>=2)
+        {
+         double last_high=HistoryHighs[HighCount-1];
+         double prev_high=HistoryHighs[HighCount-2];
+         double last_low=HistoryLows[LowCount-1];
+         double prev_low=HistoryLows[LowCount-2];
+
+         bool highs_rising=(last_high>prev_high);
+         bool lows_rising=(last_low>prev_low);
+         bool highs_falling=(last_high<prev_high);
+         bool lows_falling=(last_low<prev_low);
+
+         if(highs_rising && lows_rising)
+            TrendState=1;  // Tendência de alta
+         else if(highs_falling && lows_falling)
+            TrendState=-1; // Tendência de baixa
+         else
+            TrendState=0;  // Neutro/indefinido
         }
 
       //--- what type of extremum we search for
