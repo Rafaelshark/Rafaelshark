@@ -74,16 +74,18 @@ string fiboLabels[]={"0.0%", "69.2%", "100.0%", "110.0%"};
 enum SquareState
   {
    SQUARE_NONE,        // No square
-   SQUARE_WAITING,     // Waiting for 69.2% touch
+   SQUARE_WAITING,     // Waiting for activation level touch
    SQUARE_ACTIVE,      // Active after touch, waiting for breakout or 110% close
    SQUARE_TRIGGERED,   // Breakout occurred, waiting for take/stop
-   SQUARE_LOCKED       // Locked due to entry limit violation
+   SQUARE_LOCKED_ENTRY,// Locked due to entry limit violation
+   SQUARE_LOCKED_110   // Locked due to 110% violation
   };
 
 SquareState squareState=SQUARE_NONE;
 datetime squareStartTime=0;
 int squareStartBar=0;
 double squareBasePrice=0; // For bullish: base, for bearish: top
+double squareLockedBasePrice=0; // Frozen base when locked at 110%
 int squareDirection=0; // 1=bullish (100% at bottom), -1=bearish (100% at top)
 double fiboActivationPrice=0; // Dynamic activation level price
 double fibo110Price=0;
@@ -711,7 +713,8 @@ void ManageSquare(int rates_total, const datetime &time[],
 
       if(entryLimitViolated)
         {
-         squareState=SQUARE_LOCKED;
+         squareState=SQUARE_LOCKED_ENTRY;
+         squareLockedBasePrice=squareBasePrice; // Freeze current base
          return;
         }
 
@@ -740,7 +743,7 @@ void ManageSquare(int rates_total, const datetime &time[],
          return;
         }
 
-      //--- Check for close below/above 110% (scenario A)
+      //--- Check for close below/above 110% (lock the square)
       bool closedPast110=false;
       if(is_bullish && close[current_bar]<fibo110Price)
          closedPast110=true;
@@ -749,9 +752,8 @@ void ManageSquare(int rates_total, const datetime &time[],
 
       if(closedPast110)
         {
-         squareState=SQUARE_NONE;
-         ObjectsDeleteAll(0,squarePrefix);
-         squareUsedForCurrentLeg=false; // Allow new square for next leg
+         squareState=SQUARE_LOCKED_110;
+         squareLockedBasePrice=squareBasePrice; // Freeze current base
          return;
         }
 
@@ -793,11 +795,18 @@ void ManageSquare(int rates_total, const datetime &time[],
       DrawTakeProfitStopLoss(time, current_bar, is_bullish);
      }
 
-//--- STATE: LOCKED - Wait for new leg (handled by leg change check above)
-   if(squareState==SQUARE_LOCKED)
+//--- STATE: LOCKED_ENTRY - Wait for new leg (handled by leg change check above)
+   if(squareState==SQUARE_LOCKED_ENTRY)
      {
-      //--- Keep drawing locked square
-      DrawSquare(time, current_bar, is_bullish);
+      //--- Keep drawing locked square with frozen base
+      DrawLockedSquare(time, current_bar, is_bullish);
+     }
+
+//--- STATE: LOCKED_110 - Wait for new leg (handled by leg change check above)
+   if(squareState==SQUARE_LOCKED_110)
+     {
+      //--- Keep drawing locked square with frozen base
+      DrawLockedSquare(time, current_bar, is_bullish);
      }
   }
 //+------------------------------------------------------------------+
@@ -871,6 +880,59 @@ void DrawSquare(const datetime &time[], int current_bar, bool is_bullish)
       if(ObjectFind(0,entry_line_name)>=0)
          ObjectDelete(0,entry_line_name);
      }
+  }
+//+------------------------------------------------------------------+
+//| Draw Locked Square (frozen at 110% or entry limit violation)    |
+//+------------------------------------------------------------------+
+void DrawLockedSquare(const datetime &time[], int current_bar, bool is_bullish)
+  {
+//--- Square starts at activation time
+   datetime start_time=squareStartTime;
+
+//--- Calculate square end time (activation + 10 candles)
+   int end_bar=squareStartBar+InpSquareWidth;
+   if(end_bar>=ArraySize(time)) end_bar=ArraySize(time)-1;
+   datetime end_time=time[end_bar];
+
+//--- Calculate square prices using FROZEN base
+   double price1, price2;
+
+   if(is_bullish)
+     {
+      //--- For bullish: use frozen base
+      price1=squareLockedBasePrice; // Bottom (frozen)
+      price2=squareLockedBasePrice+(InpSquareHeight*_Point); // Top (frozen)
+     }
+   else
+     {
+      //--- For bearish: use frozen top
+      price1=squareLockedBasePrice-(InpSquareHeight*_Point); // Bottom (frozen)
+      price2=squareLockedBasePrice; // Top (frozen)
+     }
+
+//--- Draw rectangle
+   string rect_name=squarePrefix+"Rectangle";
+
+   if(ObjectFind(0,rect_name)<0)
+     {
+      ObjectCreate(0,rect_name,OBJ_RECTANGLE,0,start_time,price1,end_time,price2);
+      ObjectSetInteger(0,rect_name,OBJPROP_COLOR,InpSquareColor);
+      ObjectSetInteger(0,rect_name,OBJPROP_STYLE,STYLE_SOLID);
+      ObjectSetInteger(0,rect_name,OBJPROP_WIDTH,InpSquareWidth_Line);
+      ObjectSetInteger(0,rect_name,OBJPROP_FILL,false);
+      ObjectSetInteger(0,rect_name,OBJPROP_BACK,false);
+      ObjectSetInteger(0,rect_name,OBJPROP_SELECTABLE,false);
+     }
+   else
+     {
+      ObjectMove(0,rect_name,0,start_time,price1);
+      ObjectMove(0,rect_name,1,end_time,price2);
+     }
+
+//--- Remove entry limit line when locked
+   string entry_line_name=squarePrefix+"EntryLimit";
+   if(ObjectFind(0,entry_line_name)>=0)
+      ObjectDelete(0,entry_line_name);
   }
 //+------------------------------------------------------------------+
 //| Draw Take Profit and Stop Loss                                   |
