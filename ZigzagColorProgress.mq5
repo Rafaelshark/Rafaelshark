@@ -820,40 +820,52 @@ void DrawSquare(const datetime &time[], int current_bar, bool is_bullish)
 //+------------------------------------------------------------------+
 void DrawTakeProfitStopLoss(const datetime &time[], int current_bar, bool is_bullish)
   {
-//--- Draw Take Profit line
+//--- Calculate same start/end time as square
+   datetime start_time=squareStartTime;
+   int end_bar=squareStartBar+InpSquareWidth;
+   if(end_bar>=ArraySize(time)) end_bar=ArraySize(time)-1;
+   datetime end_time=time[end_bar];
+
+//--- Draw Take Profit line (same length as square)
    string tp_line_name=squarePrefix+"TakeProfit";
    if(ObjectFind(0,tp_line_name)<0)
      {
-      ObjectCreate(0,tp_line_name,OBJ_HLINE,0,0,takeProfitPrice);
-      ObjectSetInteger(0,tp_line_name,OBJPROP_COLOR,clrGreen);
+      ObjectCreate(0,tp_line_name,OBJ_TREND,0,start_time,takeProfitPrice,end_time,takeProfitPrice);
+      ObjectSetInteger(0,tp_line_name,OBJPROP_COLOR,clrBlack);
       ObjectSetInteger(0,tp_line_name,OBJPROP_STYLE,STYLE_SOLID);
       ObjectSetInteger(0,tp_line_name,OBJPROP_WIDTH,2);
+      ObjectSetInteger(0,tp_line_name,OBJPROP_RAY_RIGHT,false);
+      ObjectSetInteger(0,tp_line_name,OBJPROP_RAY_LEFT,false);
       ObjectSetInteger(0,tp_line_name,OBJPROP_BACK,true);
       ObjectSetInteger(0,tp_line_name,OBJPROP_SELECTABLE,false);
      }
    else
      {
-      ObjectMove(0,tp_line_name,0,0,takeProfitPrice);
+      ObjectMove(0,tp_line_name,0,start_time,takeProfitPrice);
+      ObjectMove(0,tp_line_name,1,end_time,takeProfitPrice);
      }
 
-//--- Draw Stop Loss line
+//--- Draw Stop Loss line (same length as square)
    string sl_line_name=squarePrefix+"StopLoss";
    if(ObjectFind(0,sl_line_name)<0)
      {
-      ObjectCreate(0,sl_line_name,OBJ_HLINE,0,0,stopLossPrice);
-      ObjectSetInteger(0,sl_line_name,OBJPROP_COLOR,clrRed);
+      ObjectCreate(0,sl_line_name,OBJ_TREND,0,start_time,stopLossPrice,end_time,stopLossPrice);
+      ObjectSetInteger(0,sl_line_name,OBJPROP_COLOR,clrBlack);
       ObjectSetInteger(0,sl_line_name,OBJPROP_STYLE,STYLE_SOLID);
       ObjectSetInteger(0,sl_line_name,OBJPROP_WIDTH,2);
+      ObjectSetInteger(0,sl_line_name,OBJPROP_RAY_RIGHT,false);
+      ObjectSetInteger(0,sl_line_name,OBJPROP_RAY_LEFT,false);
       ObjectSetInteger(0,sl_line_name,OBJPROP_BACK,true);
       ObjectSetInteger(0,sl_line_name,OBJPROP_SELECTABLE,false);
      }
    else
      {
-      ObjectMove(0,sl_line_name,0,0,stopLossPrice);
+      ObjectMove(0,sl_line_name,0,start_time,stopLossPrice);
+      ObjectMove(0,sl_line_name,1,end_time,stopLossPrice);
      }
 
 //--- Draw labels
-   datetime label_time=time[current_bar];
+   datetime label_time=end_time;
 
    string tp_label_name=squarePrefix+"TPLabel";
    if(ObjectFind(0,tp_label_name)<0)
@@ -861,7 +873,7 @@ void DrawTakeProfitStopLoss(const datetime &time[], int current_bar, bool is_bul
       ObjectCreate(0,tp_label_name,OBJ_TEXT,0,label_time,takeProfitPrice);
       ObjectSetString(0,tp_label_name,OBJPROP_FONT,"Arial Bold");
       ObjectSetInteger(0,tp_label_name,OBJPROP_FONTSIZE,10);
-      ObjectSetInteger(0,tp_label_name,OBJPROP_COLOR,clrGreen);
+      ObjectSetInteger(0,tp_label_name,OBJPROP_COLOR,clrBlack);
       ObjectSetString(0,tp_label_name,OBJPROP_TEXT,"  TAKE");
       ObjectSetInteger(0,tp_label_name,OBJPROP_ANCHOR,ANCHOR_LEFT);
       ObjectSetInteger(0,tp_label_name,OBJPROP_SELECTABLE,false);
@@ -877,7 +889,7 @@ void DrawTakeProfitStopLoss(const datetime &time[], int current_bar, bool is_bul
       ObjectCreate(0,sl_label_name,OBJ_TEXT,0,label_time,stopLossPrice);
       ObjectSetString(0,sl_label_name,OBJPROP_FONT,"Arial Bold");
       ObjectSetInteger(0,sl_label_name,OBJPROP_FONTSIZE,10);
-      ObjectSetInteger(0,sl_label_name,OBJPROP_COLOR,clrRed);
+      ObjectSetInteger(0,sl_label_name,OBJPROP_COLOR,clrBlack);
       ObjectSetString(0,sl_label_name,OBJPROP_TEXT,"  STOP");
       ObjectSetInteger(0,sl_label_name,OBJPROP_ANCHOR,ANCHOR_LEFT);
       ObjectSetInteger(0,sl_label_name,OBJPROP_SELECTABLE,false);
