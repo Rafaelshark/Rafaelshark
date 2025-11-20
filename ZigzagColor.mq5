@@ -165,18 +165,18 @@ void DetectTrendBreak(double new_value,bool is_high,int shift,bool mark_break=tr
    if(is_high)
      {
       // Novo TOPO sendo adicionado
-      // TENDÊNCIA DE ALTA: topos e fundos crescentes
-      if(prev_high>prev_prev_high && prev_low>prev_prev_low)
+      // Verificar se forma ALTA confirmada: topos e fundos crescentes
+      if(new_value>prev_high && prev_low>prev_prev_low)
         {
-         TrendState=1; // Confirmada alta
-         // Se tinha quebra pendente, confirmar que virou BAIXA
-         if(BreakPos>=0)
+         // Se estava quebrado (estado 0), agora confirma que virou ALTA
+         if(TrendState==0 && BreakPos>=0)
            {
-            ConfirmDownBuffer[shift]=new_value; // Círculo vermelho ao lado
+            ConfirmUpBuffer[shift]=new_value; // Círculo verde ao lado
             BreakPos=-1;
            }
+         TrendState=1; // Agora está em alta confirmada
         }
-      // QUEBRA quando topo < topo anterior (estando em alta)
+      // QUEBRA de alta: topo menor que o anterior
       else if(TrendState==1 && new_value<prev_high)
         {
          BreakBuffer[shift]=new_value; // Círculo amarelo
@@ -184,22 +184,41 @@ void DetectTrendBreak(double new_value,bool is_high,int shift,bool mark_break=tr
          BreakValue=new_value;
          TrendState=0; // Quebrou, indefinido
         }
+      // QUEBRA de baixa: topo maior que o anterior
+      else if(TrendState==-1 && new_value>prev_high)
+        {
+         BreakBuffer[shift]=new_value; // Círculo amarelo
+         BreakPos=shift;
+         BreakValue=new_value;
+         TrendState=0; // Quebrou, indefinido
+        }
+      // Verificar se forma BAIXA confirmada: topos e fundos decrescentes
+      else if(new_value<prev_high && prev_low<prev_prev_low)
+        {
+         // Se estava quebrado, agora confirma que virou BAIXA
+         if(TrendState==0 && BreakPos>=0)
+           {
+            ConfirmDownBuffer[shift]=new_value; // Círculo vermelho ao lado
+            BreakPos=-1;
+           }
+         TrendState=-1; // Agora está em baixa confirmada
+        }
      }
    else
      {
       // Novo FUNDO sendo adicionado
-      // TENDÊNCIA DE BAIXA: topos e fundos decrescentes
-      if(prev_high<prev_prev_high && prev_low<prev_prev_low)
+      // Verificar se forma ALTA confirmada: fundos e topos crescentes
+      if(new_value>prev_low && prev_high>prev_prev_high)
         {
-         TrendState=-1; // Confirmada baixa
-         // Se tinha quebra pendente, confirmar que virou ALTA
-         if(BreakPos>=0)
+         // Se estava quebrado, agora confirma que virou ALTA
+         if(TrendState==0 && BreakPos>=0)
            {
             ConfirmUpBuffer[shift]=new_value; // Círculo verde ao lado
             BreakPos=-1;
            }
+         TrendState=1; // Agora está em alta confirmada
         }
-      // QUEBRA quando fundo < fundo anterior (estando em alta)
+      // QUEBRA de alta: fundo menor que o anterior
       else if(TrendState==1 && new_value<prev_low)
         {
          BreakBuffer[shift]=new_value; // Círculo amarelo
@@ -207,7 +226,18 @@ void DetectTrendBreak(double new_value,bool is_high,int shift,bool mark_break=tr
          BreakValue=new_value;
          TrendState=0; // Quebrou, indefinido
         }
-      // QUEBRA quando fundo > fundo anterior (estando em baixa)
+      // Verificar se forma BAIXA confirmada: fundos e topos decrescentes
+      else if(new_value<prev_low && prev_high<prev_prev_high)
+        {
+         // Se estava quebrado, agora confirma que virou BAIXA
+         if(TrendState==0 && BreakPos>=0)
+           {
+            ConfirmDownBuffer[shift]=new_value; // Círculo vermelho ao lado
+            BreakPos=-1;
+           }
+         TrendState=-1; // Agora está em baixa confirmada
+        }
+      // QUEBRA de baixa: fundo maior que o anterior
       else if(TrendState==-1 && new_value>prev_low)
         {
          BreakBuffer[shift]=new_value; // Círculo amarelo
