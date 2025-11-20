@@ -481,9 +481,9 @@ void DrawFibonacciRetracement(int rates_total, const datetime &time[],
       if(ObjectFind(0,activation_line_name)<0)
         {
          ObjectCreate(0,activation_line_name,OBJ_TREND,0,start_time,activation_price,end_time,activation_price);
-         ObjectSetInteger(0,activation_line_name,OBJPROP_COLOR,clrRed);
-         ObjectSetInteger(0,activation_line_name,OBJPROP_STYLE,STYLE_SOLID);
-         ObjectSetInteger(0,activation_line_name,OBJPROP_WIDTH,2);
+         ObjectSetInteger(0,activation_line_name,OBJPROP_COLOR,InpFiboColor);
+         ObjectSetInteger(0,activation_line_name,OBJPROP_STYLE,InpFiboStyle);
+         ObjectSetInteger(0,activation_line_name,OBJPROP_WIDTH,InpFiboWidth);
          ObjectSetInteger(0,activation_line_name,OBJPROP_RAY_RIGHT,true);
          ObjectSetInteger(0,activation_line_name,OBJPROP_RAY_LEFT,false);
          ObjectSetInteger(0,activation_line_name,OBJPROP_SELECTABLE,false);
@@ -503,7 +503,7 @@ void DrawFibonacciRetracement(int rates_total, const datetime &time[],
             ObjectCreate(0,activation_label_name,OBJ_TEXT,0,end_time,activation_price);
             ObjectSetString(0,activation_label_name,OBJPROP_FONT,"Arial");
             ObjectSetInteger(0,activation_label_name,OBJPROP_FONTSIZE,8);
-            ObjectSetInteger(0,activation_label_name,OBJPROP_COLOR,clrRed);
+            ObjectSetInteger(0,activation_label_name,OBJPROP_COLOR,InpFiboColor);
             ObjectSetInteger(0,activation_label_name,OBJPROP_ANCHOR,ANCHOR_LEFT);
             ObjectSetInteger(0,activation_label_name,OBJPROP_SELECTABLE,false);
             ObjectSetInteger(0,activation_label_name,OBJPROP_BACK,true);
@@ -524,18 +524,15 @@ void DrawFibonacciRetracement(int rates_total, const datetime &time[],
       //--- Use (1.0-fiboLevels[i]) so that 100% maps to leg_start_price
       level_price=leg_start_price+range*(1.0-fiboLevels[i]);
 
-      //--- Check if this is the activation level
-      bool isActivationLevel=(MathAbs(fiboLevels[i]-InpActivationLevel)<0.001);
-
       //--- Create or update trend line
       string line_name=fiboPrefix+"Line_"+IntegerToString(i);
 
       if(ObjectFind(0,line_name)<0)
         {
          ObjectCreate(0,line_name,OBJ_TREND,0,start_time,level_price,end_time,level_price);
-         ObjectSetInteger(0,line_name,OBJPROP_COLOR,isActivationLevel ? clrRed : InpFiboColor);
-         ObjectSetInteger(0,line_name,OBJPROP_STYLE,isActivationLevel ? STYLE_SOLID : InpFiboStyle);
-         ObjectSetInteger(0,line_name,OBJPROP_WIDTH,isActivationLevel ? 2 : InpFiboWidth);
+         ObjectSetInteger(0,line_name,OBJPROP_COLOR,InpFiboColor);
+         ObjectSetInteger(0,line_name,OBJPROP_STYLE,InpFiboStyle);
+         ObjectSetInteger(0,line_name,OBJPROP_WIDTH,InpFiboWidth);
          ObjectSetInteger(0,line_name,OBJPROP_RAY_RIGHT,true);
          ObjectSetInteger(0,line_name,OBJPROP_RAY_LEFT,false);
          ObjectSetInteger(0,line_name,OBJPROP_SELECTABLE,false);
@@ -545,9 +542,9 @@ void DrawFibonacciRetracement(int rates_total, const datetime &time[],
         {
          ObjectMove(0,line_name,0,start_time,level_price);
          ObjectMove(0,line_name,1,end_time,level_price);
-         ObjectSetInteger(0,line_name,OBJPROP_COLOR,isActivationLevel ? clrRed : InpFiboColor);
-         ObjectSetInteger(0,line_name,OBJPROP_STYLE,isActivationLevel ? STYLE_SOLID : InpFiboStyle);
-         ObjectSetInteger(0,line_name,OBJPROP_WIDTH,isActivationLevel ? 2 : InpFiboWidth);
+         ObjectSetInteger(0,line_name,OBJPROP_COLOR,InpFiboColor);
+         ObjectSetInteger(0,line_name,OBJPROP_STYLE,InpFiboStyle);
+         ObjectSetInteger(0,line_name,OBJPROP_WIDTH,InpFiboWidth);
         }
 
       //--- Create or update label
