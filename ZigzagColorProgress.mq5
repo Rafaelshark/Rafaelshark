@@ -38,8 +38,11 @@ input bool InpShowFiboLabels=true; // Show Fibonacci Labels
 input bool InpShowSquare=true; // Show 69.2% Square
 input int InpSquareHeight=400; // Square Height (points)
 input int InpSquareWidth=10; // Square Width (candles)
-input color InpSquareColor=clrYellow; // Square Color
+input color InpSquareColor=clrBlack; // Square Color
 input int InpSquareWidth_Line=2; // Square Line Width
+input int InpEntryLimit=50; // Entry Limit (points from 69.2%)
+input int InpTakeProfit=200; // Take Profit (points from top of square)
+input int InpStopLoss=100; // Stop Loss (points from base of square)
 
 //--- indicator buffers
 double ZigzagPeakBuffer[];
@@ -67,16 +70,29 @@ double fiboLevels[]={0.0, 0.692, 1.0, 1.10};
 string fiboLabels[]={"0.0%", "69.2%", "100.0%", "110.0%"};
 
 //--- Square state variables
-bool squareActive=false;
+enum SquareState
+  {
+   SQUARE_NONE,        // No square
+   SQUARE_WAITING,     // Waiting for 69.2% touch
+   SQUARE_ACTIVE,      // Active after touch, waiting for breakout or 110% close
+   SQUARE_TRIGGERED,   // Breakout occurred, waiting for take/stop
+   SQUARE_LOCKED       // Locked due to entry limit violation
+  };
+
+SquareState squareState=SQUARE_NONE;
 datetime squareStartTime=0;
-int squareStartBar=0; // Bar index where square was activated
+int squareStartBar=0;
 double squareBasePrice=0; // For bullish: base, for bearish: top
 int squareDirection=0; // 1=bullish (100% at bottom), -1=bearish (100% at top)
 double fibo692Price=0;
 double fibo110Price=0;
 double fibo100Price=0;
 double fibo0Price=0;
+double entryLimitPrice=0;
+double takeProfitPrice=0;
+double stopLossPrice=0;
 int currentLegEndPos=0; // To track if leg changed
+bool squareUsedForCurrentLeg=false; // Track if square was already created for this leg
 
 //+------------------------------------------------------------------+
 //| Custom indicator initialization function                         |
@@ -341,9 +357,9 @@ int OnCalculate(const int rates_total,
    if(InpShowSquare && has_valid_leg)
       ManageSquare(rates_total, time, high, low, close,
                    leg_start_pos, leg_end_pos, leg_start_price, leg_end_price, leg_color);
-   else if(!has_valid_leg && squareActive)
+   else if(!has_valid_leg && squareState!=SQUARE_NONE)
      {
-      squareActive=false;
+      squareState=SQUARE_NONE;
       ObjectsDeleteAll(0,squarePrefix);
      }
 
@@ -506,13 +522,21 @@ void ManageSquare(int rates_total, const datetime &time[],
                   double leg_start_price, double leg_end_price,
                   int leg_color)
   {
-//--- Check if leg changed - if yes, reset square
-   if(currentLegEndPos!=leg_end_pos)
+//--- Check if leg changed
+   bool legChanged=(currentLegEndPos!=0 && currentLegEndPos!=leg_end_pos);
+
+   if(legChanged)
      {
-      squareActive=false;
-      ObjectsDeleteAll(0,squarePrefix);
-      currentLegEndPos=leg_end_pos;
+      //--- Only reset if not in TRIGGERED state (waiting for take/stop)
+      if(squareState!=SQUARE_TRIGGERED)
+        {
+         squareState=SQUARE_NONE;
+         ObjectsDeleteAll(0,squarePrefix);
+         squareUsedForCurrentLeg=false;
+        }
      }
+
+   currentLegEndPos=leg_end_pos;
 
 //--- Calculate Fibonacci levels
    double range=leg_end_price-leg_start_price;
@@ -538,8 +562,10 @@ void ManageSquare(int rates_total, const datetime &time[],
       squareDirection=-1;
      }
 
-//--- Check if square should be activated
-   if(!squareActive)
+   int current_bar=rates_total-1;
+
+//--- STATE: NONE or WAITING - Check if square should be activated
+   if(squareState==SQUARE_NONE && !squareUsedForCurrentLeg)
      {
       //--- Check for touch on 69.2% level AFTER leg_end_pos
       for(int i=leg_end_pos+1; i<rates_total; i++)
@@ -548,42 +574,44 @@ void ManageSquare(int rates_total, const datetime &time[],
 
          if(is_bullish)
            {
-            //--- For bullish: check if price went down to touch 69.2%
             if(low[i]<=fibo692Price)
                touched=true;
            }
          else
            {
-            //--- For bearish: check if price went up to touch 69.2%
             if(high[i]>=fibo692Price)
                touched=true;
            }
 
          if(touched)
            {
-            squareActive=true;
+            squareState=SQUARE_ACTIVE;
             squareStartTime=time[i];
             squareStartBar=i;
+            squareUsedForCurrentLeg=true; // Mark this leg as used
 
             if(is_bullish)
-               squareBasePrice=low[i]; // Start with current low
+               squareBasePrice=low[i];
             else
-               squareBasePrice=high[i]; // Start with current high
+               squareBasePrice=high[i];
+
+            //--- Calculate entry limit
+            if(is_bullish)
+               entryLimitPrice=fibo692Price-InpEntryLimit*_Point;
+            else
+               entryLimitPrice=fibo692Price+InpEntryLimit*_Point;
 
             break;
            }
         }
      }
 
-//--- Update and check square if active
-   if(squareActive)
+//--- STATE: ACTIVE - Monitor for breakout, 110% close, or entry limit violation
+   if(squareState==SQUARE_ACTIVE)
      {
-      int current_bar=rates_total-1;
-
       //--- Update base/top price dynamically from activation point
       if(is_bullish)
         {
-         //--- For bullish: update base with lowest low since activation
          for(int i=squareStartBar; i<=current_bar; i++)
            {
             if(low[i]<squareBasePrice)
@@ -592,7 +620,6 @@ void ManageSquare(int rates_total, const datetime &time[],
         }
       else
         {
-         //--- For bearish: update top with highest high since activation
          for(int i=squareStartBar; i<=current_bar; i++)
            {
             if(high[i]>squareBasePrice)
@@ -600,40 +627,119 @@ void ManageSquare(int rates_total, const datetime &time[],
            }
         }
 
-      //--- Check termination conditions
-      bool shouldTerminate=false;
-
+      double squareTop, squareBottom;
       if(is_bullish)
         {
-         //--- Condition 1: Close below 110% Fibonacci
-         if(close[current_bar]<fibo110Price)
-            shouldTerminate=true;
-
-         //--- Condition 2: Break above square top
-         double squareTop=squareBasePrice+(InpSquareHeight*_Point);
-         if(high[current_bar]>squareTop)
-            shouldTerminate=true;
+         squareBottom=squareBasePrice;
+         squareTop=squareBasePrice+(InpSquareHeight*_Point);
         }
       else
         {
-         //--- Condition 1: Close above 110% Fibonacci
-         if(close[current_bar]>fibo110Price)
-            shouldTerminate=true;
-
-         //--- Condition 2: Break below square bottom
-         double squareBottom=squareBasePrice-(InpSquareHeight*_Point);
-         if(low[current_bar]<squareBottom)
-            shouldTerminate=true;
+         squareTop=squareBasePrice;
+         squareBottom=squareBasePrice-(InpSquareHeight*_Point);
         }
 
-      if(shouldTerminate)
+      //--- Check for entry limit violation (candle larger than limit)
+      bool entryLimitViolated=false;
+      if(is_bullish)
         {
-         squareActive=false;
+         if(low[current_bar]<entryLimitPrice)
+            entryLimitViolated=true;
+        }
+      else
+        {
+         if(high[current_bar]>entryLimitPrice)
+            entryLimitViolated=true;
+        }
+
+      if(entryLimitViolated)
+        {
+         squareState=SQUARE_LOCKED;
+         return;
+        }
+
+      //--- Check for breakout
+      bool breakout=false;
+      if(is_bullish && high[current_bar]>squareTop)
+         breakout=true;
+      else if(!is_bullish && low[current_bar]<squareBottom)
+         breakout=true;
+
+      if(breakout)
+        {
+         squareState=SQUARE_TRIGGERED;
+
+         //--- Calculate take and stop
+         if(is_bullish)
+           {
+            takeProfitPrice=squareTop+InpTakeProfit*_Point;
+            stopLossPrice=squareBottom-InpStopLoss*_Point;
+           }
+         else
+           {
+            takeProfitPrice=squareBottom-InpTakeProfit*_Point;
+            stopLossPrice=squareTop+InpStopLoss*_Point;
+           }
+         return;
+        }
+
+      //--- Check for close below/above 110% (scenario A)
+      bool closedPast110=false;
+      if(is_bullish && close[current_bar]<fibo110Price)
+         closedPast110=true;
+      else if(!is_bullish && close[current_bar]>fibo110Price)
+         closedPast110=true;
+
+      if(closedPast110)
+        {
+         squareState=SQUARE_NONE;
          ObjectsDeleteAll(0,squarePrefix);
+         squareUsedForCurrentLeg=false; // Allow new square for next leg
          return;
         }
 
       //--- Draw the square
+      DrawSquare(time, current_bar, is_bullish);
+     }
+
+//--- STATE: TRIGGERED - Wait for take or stop
+   if(squareState==SQUARE_TRIGGERED)
+     {
+      bool hitTake=false;
+      bool hitStop=false;
+
+      if(is_bullish)
+        {
+         if(high[current_bar]>=takeProfitPrice)
+            hitTake=true;
+         if(low[current_bar]<=stopLossPrice)
+            hitStop=true;
+        }
+      else
+        {
+         if(low[current_bar]<=takeProfitPrice)
+            hitTake=true;
+         if(high[current_bar]>=stopLossPrice)
+            hitStop=true;
+        }
+
+      if(hitTake || hitStop)
+        {
+         squareState=SQUARE_NONE;
+         ObjectsDeleteAll(0,squarePrefix);
+         squareUsedForCurrentLeg=false; // Allow new square for next leg
+         return;
+        }
+
+      //--- Continue drawing square and TP/SL lines
+      DrawSquare(time, current_bar, is_bullish);
+      DrawTakeProfitStopLoss(time, current_bar, is_bullish);
+     }
+
+//--- STATE: LOCKED - Wait for new leg (handled by leg change check above)
+   if(squareState==SQUARE_LOCKED)
+     {
+      //--- Keep drawing locked square
       DrawSquare(time, current_bar, is_bullish);
      }
   }
@@ -683,6 +789,102 @@ void DrawSquare(const datetime &time[], int current_bar, bool is_bullish)
      {
       ObjectMove(0,rect_name,0,start_time,price1);
       ObjectMove(0,rect_name,1,end_time,price2);
+     }
+
+//--- Draw entry limit line
+   string entry_line_name=squarePrefix+"EntryLimit";
+   if(squareState==SQUARE_ACTIVE)
+     {
+      if(ObjectFind(0,entry_line_name)<0)
+        {
+         ObjectCreate(0,entry_line_name,OBJ_HLINE,0,0,entryLimitPrice);
+         ObjectSetInteger(0,entry_line_name,OBJPROP_COLOR,clrOrange);
+         ObjectSetInteger(0,entry_line_name,OBJPROP_STYLE,STYLE_DASHDOT);
+         ObjectSetInteger(0,entry_line_name,OBJPROP_WIDTH,1);
+         ObjectSetInteger(0,entry_line_name,OBJPROP_BACK,true);
+         ObjectSetInteger(0,entry_line_name,OBJPROP_SELECTABLE,false);
+        }
+      else
+        {
+         ObjectMove(0,entry_line_name,0,0,entryLimitPrice);
+        }
+     }
+   else
+     {
+      if(ObjectFind(0,entry_line_name)>=0)
+         ObjectDelete(0,entry_line_name);
+     }
+  }
+//+------------------------------------------------------------------+
+//| Draw Take Profit and Stop Loss                                   |
+//+------------------------------------------------------------------+
+void DrawTakeProfitStopLoss(const datetime &time[], int current_bar, bool is_bullish)
+  {
+//--- Draw Take Profit line
+   string tp_line_name=squarePrefix+"TakeProfit";
+   if(ObjectFind(0,tp_line_name)<0)
+     {
+      ObjectCreate(0,tp_line_name,OBJ_HLINE,0,0,takeProfitPrice);
+      ObjectSetInteger(0,tp_line_name,OBJPROP_COLOR,clrGreen);
+      ObjectSetInteger(0,tp_line_name,OBJPROP_STYLE,STYLE_SOLID);
+      ObjectSetInteger(0,tp_line_name,OBJPROP_WIDTH,2);
+      ObjectSetInteger(0,tp_line_name,OBJPROP_BACK,true);
+      ObjectSetInteger(0,tp_line_name,OBJPROP_SELECTABLE,false);
+     }
+   else
+     {
+      ObjectMove(0,tp_line_name,0,0,takeProfitPrice);
+     }
+
+//--- Draw Stop Loss line
+   string sl_line_name=squarePrefix+"StopLoss";
+   if(ObjectFind(0,sl_line_name)<0)
+     {
+      ObjectCreate(0,sl_line_name,OBJ_HLINE,0,0,stopLossPrice);
+      ObjectSetInteger(0,sl_line_name,OBJPROP_COLOR,clrRed);
+      ObjectSetInteger(0,sl_line_name,OBJPROP_STYLE,STYLE_SOLID);
+      ObjectSetInteger(0,sl_line_name,OBJPROP_WIDTH,2);
+      ObjectSetInteger(0,sl_line_name,OBJPROP_BACK,true);
+      ObjectSetInteger(0,sl_line_name,OBJPROP_SELECTABLE,false);
+     }
+   else
+     {
+      ObjectMove(0,sl_line_name,0,0,stopLossPrice);
+     }
+
+//--- Draw labels
+   datetime label_time=time[current_bar];
+
+   string tp_label_name=squarePrefix+"TPLabel";
+   if(ObjectFind(0,tp_label_name)<0)
+     {
+      ObjectCreate(0,tp_label_name,OBJ_TEXT,0,label_time,takeProfitPrice);
+      ObjectSetString(0,tp_label_name,OBJPROP_FONT,"Arial Bold");
+      ObjectSetInteger(0,tp_label_name,OBJPROP_FONTSIZE,10);
+      ObjectSetInteger(0,tp_label_name,OBJPROP_COLOR,clrGreen);
+      ObjectSetString(0,tp_label_name,OBJPROP_TEXT,"  TAKE");
+      ObjectSetInteger(0,tp_label_name,OBJPROP_ANCHOR,ANCHOR_LEFT);
+      ObjectSetInteger(0,tp_label_name,OBJPROP_SELECTABLE,false);
+     }
+   else
+     {
+      ObjectMove(0,tp_label_name,0,label_time,takeProfitPrice);
+     }
+
+   string sl_label_name=squarePrefix+"SLLabel";
+   if(ObjectFind(0,sl_label_name)<0)
+     {
+      ObjectCreate(0,sl_label_name,OBJ_TEXT,0,label_time,stopLossPrice);
+      ObjectSetString(0,sl_label_name,OBJPROP_FONT,"Arial Bold");
+      ObjectSetInteger(0,sl_label_name,OBJPROP_FONTSIZE,10);
+      ObjectSetInteger(0,sl_label_name,OBJPROP_COLOR,clrRed);
+      ObjectSetString(0,sl_label_name,OBJPROP_TEXT,"  STOP");
+      ObjectSetInteger(0,sl_label_name,OBJPROP_ANCHOR,ANCHOR_LEFT);
+      ObjectSetInteger(0,sl_label_name,OBJPROP_SELECTABLE,false);
+     }
+   else
+     {
+      ObjectMove(0,sl_label_name,0,label_time,stopLossPrice);
      }
   }
 //+------------------------------------------------------------------+
