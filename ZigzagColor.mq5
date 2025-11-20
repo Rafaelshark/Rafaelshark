@@ -43,6 +43,18 @@ struct ExtremumPoint
 ExtremumPoint extremum_history[5]; // Últimos 5 extremos
 int extremum_count = 0;
 //+------------------------------------------------------------------+
+//| Inicializa o array de extremos                                   |
+//+------------------------------------------------------------------+
+void InitializeExtremumHistory()
+  {
+   for(int i=0; i<5; i++)
+     {
+      extremum_history[i].price = 0.0;
+      extremum_history[i].shift = 0;
+      extremum_history[i].is_peak = false;
+     }
+  }
+//+------------------------------------------------------------------+
 //| Custom indicator initialization function                         |
 //+------------------------------------------------------------------+
 void OnInit()
@@ -64,7 +76,7 @@ void OnInit()
 //--- set an empty value
    PlotIndexSetDouble(0,PLOT_EMPTY_VALUE,0.0);
 //--- inicializar histórico de extremos
-   ArrayInitialize(extremum_history,0);
+   InitializeExtremumHistory();
    extremum_count = 0;
   }
 //+------------------------------------------------------------------+
@@ -177,7 +189,7 @@ int OnCalculate(const int rates_total,
       //--- start calculation from bar number InpDepth
       start=InpDepth-1;
       //--- resetar histórico de extremos
-      ArrayInitialize(extremum_history,0);
+      InitializeExtremumHistory();
       extremum_count = 0;
      }
 //--- ZigZag was already calculated before
