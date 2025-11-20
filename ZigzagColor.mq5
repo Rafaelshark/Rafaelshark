@@ -18,11 +18,12 @@
 #property indicator_color3  clrLime
 #property indicator_width3  3
 //--- input parameters
-input int InpDepth     =12;  // Depth
-input int InpDeviation =5;   // Deviation
-input int InpBackstep  =3;   // Back Step
-input int InpLineWidth =2;   // Line Width (1-5)
-input int InpSymbolSize=3;   // Symbol Size (1-5)
+input int  InpDepth       =12;    // Depth
+input int  InpDeviation   =5;     // Deviation
+input int  InpBackstep    =3;     // Back Step
+input bool InpShowLine    =true;  // Show ZigZag Line
+input int  InpLineWidth   =2;     // Line Width (1-5)
+input int  InpCircleSize  =5;     // Circle Size (1-10)
 //--- indicator buffers
 double ZigzagPeakBuffer[];
 double ZigzagBottomBuffer[];
@@ -64,13 +65,28 @@ void OnInit()
    SetIndexBuffer(6,LowMapBuffer,INDICATOR_CALCULATIONS);
 //--- set accuracy
    IndicatorSetInteger(INDICATOR_DIGITS,_Digits);
-//--- set line width
-   PlotIndexSetInteger(0,PLOT_LINE_WIDTH,InpLineWidth);
-//--- configurar símbolos de quebra
-   PlotIndexSetInteger(1,PLOT_ARROW,159); // Círculo grande para quebra de alta
-   PlotIndexSetInteger(1,PLOT_LINE_WIDTH,InpSymbolSize);
-   PlotIndexSetInteger(2,PLOT_ARROW,159); // Círculo grande para quebra de baixa
-   PlotIndexSetInteger(2,PLOT_LINE_WIDTH,InpSymbolSize);
+
+//--- configurar linha do ZigZag
+   if(InpShowLine)
+     {
+      PlotIndexSetInteger(0,PLOT_DRAW_TYPE,DRAW_COLOR_ZIGZAG);
+      PlotIndexSetInteger(0,PLOT_LINE_WIDTH,InpLineWidth);
+     }
+   else
+     {
+      PlotIndexSetInteger(0,PLOT_DRAW_TYPE,DRAW_NONE); // Ocultar linha
+     }
+
+//--- configurar símbolos de quebra (círculos)
+   int circle_size=InpCircleSize;
+   if(circle_size<1) circle_size=1;
+   if(circle_size>10) circle_size=10;
+
+   PlotIndexSetInteger(1,PLOT_ARROW,159); // Círculo para quebra de alta
+   PlotIndexSetInteger(1,PLOT_LINE_WIDTH,circle_size);
+   PlotIndexSetInteger(2,PLOT_ARROW,159); // Círculo para quebra de baixa
+   PlotIndexSetInteger(2,PLOT_LINE_WIDTH,circle_size);
+
 //--- name for DataWindow and indicator subwindow label
    string short_name=StringFormat("ZigZagColor(%d,%d,%d)",InpDepth,InpDeviation,InpBackstep);
    IndicatorSetString(INDICATOR_SHORTNAME,short_name);
