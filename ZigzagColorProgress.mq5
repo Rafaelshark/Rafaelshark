@@ -746,24 +746,12 @@ void ManageSquare(int rates_total, const datetime &time[],
       //--- Draw 110% level line for visualization
       Draw110Level(time, current_bar, is_bullish);
 
-      //--- Calculate square boundaries
-      double squareTop, squareBottom;
-      if(is_bullish)
-        {
-         squareBottom=squareBasePrice;
-         squareTop=squareBasePrice+(InpSquareHeight*_Point);
-        }
-      else
-        {
-         squareTop=squareBasePrice;
-         squareBottom=squareBasePrice-(InpSquareHeight*_Point);
-        }
-
-      //--- NOVA LÓGICA: Verificar apenas barras COMPLETAS (fechadas)
-      //--- Processar barra por barra desde a última verificação
+      //--- NOVA LÓGICA CORRIGIDA: Processar barra por barra
+      //--- Para cada barra: PRIMEIRO atualiza o quadrado, DEPOIS verifica fechamento
       int startCheckBar=(last110CheckBar>squareStartBar) ? last110CheckBar+1 : squareStartBar;
       bool broke110=false;
       bool brokeSquare=false;
+      int breakBar=-1;
 
       //--- Verificar cada barra FECHADA desde a última verificação até a penúltima
       //--- (não verificar a barra atual ainda não fechada, exceto se for histórico)
@@ -771,80 +759,140 @@ void ManageSquare(int rates_total, const datetime &time[],
       if(rates_total>current_bar+1) // Se temos histórico completo
          endCheckBar=current_bar;
 
+      //--- PASSO 1: Atualizar squareBasePrice até a última barra verificada
+      //--- (o quadrado acompanha o fundo/topo até o momento do fechamento)
       for(int i=startCheckBar; i<=endCheckBar; i++)
         {
-         //--- VERIFICAR 110% COM BASE NO FECHAMENTO DA VELA
-         //--- Nova abordagem: vela precisa FECHAR completamente além de 110%
-         if(!broke110 && !brokeSquare)
+         //--- Atualizar base/topo do quadrado para esta barra
+         if(is_bullish)
            {
-            bool closedBeyond110=false;
+            //--- Bullish: acompanha o FUNDO (menor low)
+            if(low[i]<squareBasePrice)
+               squareBasePrice=low[i];
+           }
+         else
+           {
+            //--- Bearish: acompanha o TOPO (maior high)
+            if(high[i]>squareBasePrice)
+               squareBasePrice=high[i];
+           }
 
-            if(is_bullish)
-              {
-               //--- Para bullish: 110% está ABAIXO de 100%
-               //--- Rompe se o CLOSE fecha ABAIXO de 110%
-               if(close[i]<fibo110Price)
-                  closedBeyond110=true;
-              }
-            else
-              {
-               //--- Para bearish: 110% está ACIMA de 100%
-               //--- Rompe se o CLOSE fecha ACIMA de 110%
-               if(close[i]>fibo110Price)
-                  closedBeyond110=true;
-              }
+         //--- Recalcular boundaries do quadrado COM O BASE ATUALIZADO
+         double squareTop, squareBottom;
+         if(is_bullish)
+           {
+            squareBottom=squareBasePrice;
+            squareTop=squareBasePrice+(InpSquareHeight*_Point);
+           }
+         else
+           {
+            squareTop=squareBasePrice;
+            squareBottom=squareBasePrice-(InpSquareHeight*_Point);
+           }
 
-            if(closedBeyond110)
-              {
-               broke110=true;
-               last110CheckBar=i;
-               Print("═══ 110% BREACHED ═══");
-               Print("Bar: ", i);
-               Print("Close price: ", DoubleToString(close[i], _Digits));
-               Print("Fibo 110%: ", DoubleToString(fibo110Price, _Digits));
-               Print("Direction: ", is_bullish ? "BULLISH - closed BELOW 110%" : "BEARISH - closed ABOVE 110%");
-               break; // 110% tem prioridade máxima
-              }
+         //--- VERIFICAR 110% COM BASE NO FECHAMENTO DA VELA
+         //--- Vela precisa FECHAR completamente além de 110%
+         bool closedBeyond110=false;
+
+         if(is_bullish)
+           {
+            //--- Para bullish: 110% está ABAIXO de 100%
+            //--- Rompe se o CLOSE fecha ABAIXO de 110%
+            if(close[i]<fibo110Price)
+               closedBeyond110=true;
+           }
+         else
+           {
+            //--- Para bearish: 110% está ACIMA de 100%
+            //--- Rompe se o CLOSE fecha ACIMA de 110%
+            if(close[i]>fibo110Price)
+               closedBeyond110=true;
+           }
+
+         if(closedBeyond110)
+           {
+            broke110=true;
+            breakBar=i;
+            last110CheckBar=i;
+            Print("═══ 110% BREACHED ═══");
+            Print("Bar: ", i);
+            Print("Close price: ", DoubleToString(close[i], _Digits));
+            Print("Fibo 110%: ", DoubleToString(fibo110Price, _Digits));
+            Print("Square base at breach: ", DoubleToString(squareBasePrice, _Digits));
+            Print("Direction: ", is_bullish ? "BULLISH - closed BELOW 110%" : "BEARISH - closed ABOVE 110%");
+            break; // 110% tem prioridade máxima - QUADRADO TRAVA AQUI
            }
 
          //--- VERIFICAR ROMPIMENTO DO QUADRADO (usando HIGH/LOW para toque)
-         if(!brokeSquare && !broke110)
+         bool brokeSquareThisBar=false;
+         if(is_bullish)
            {
-            if(is_bullish)
-              {
-               //--- Quadrado rompe se HIGH ultrapassa o topo
-               if(high[i]>squareTop)
-                 {
-                  brokeSquare=true;
-                  last110CheckBar=i;
-                  break;
-                 }
-              }
-            else
-              {
-               //--- Quadrado rompe se LOW ultrapassa o fundo
-               if(low[i]<squareBottom)
-                 {
-                  brokeSquare=true;
-                  last110CheckBar=i;
-                  break;
-                 }
-              }
+            //--- Quadrado rompe se HIGH ultrapassa o topo
+            if(high[i]>squareTop)
+               brokeSquareThisBar=true;
+           }
+         else
+           {
+            //--- Quadrado rompe se LOW ultrapassa o fundo
+            if(low[i]<squareBottom)
+               brokeSquareThisBar=true;
+           }
+
+         if(brokeSquareThisBar)
+           {
+            brokeSquare=true;
+            breakBar=i;
+            last110CheckBar=i;
+            Print("═══ SQUARE BREACHED ═══");
+            Print("Bar: ", i);
+            Print("Square base at breach: ", DoubleToString(squareBasePrice, _Digits));
+            Print("Square top: ", DoubleToString(squareTop, _Digits));
+            Print("Square bottom: ", DoubleToString(squareBottom, _Digits));
+            break; // QUADRADO TRAVA AQUI
            }
 
          last110CheckBar=i; // Atualizar última barra verificada
         }
 
+      //--- PASSO 2: Se não houve rompimento, continuar atualizando até current_bar
+      if(!broke110 && !brokeSquare)
+        {
+         //--- Atualizar base até a barra atual (quadrado continua se movendo)
+         if(is_bullish)
+           {
+            if(low[current_bar]<squareBasePrice)
+               squareBasePrice=low[current_bar];
+           }
+         else
+           {
+            if(high[current_bar]>squareBasePrice)
+               squareBasePrice=high[current_bar];
+           }
+        }
+
       //--- DECISÃO: Qual evento ocorreu?
       if(broke110)
         {
-         //--- 110% foi rompido: TRAVAR TUDO
+         //--- 110% foi rompido: TRAVAR TUDO (quadrado já está na posição correta)
          squareLockedAt110=true;
          squareState=SQUARE_LOCKED;
         }
       else if(brokeSquare)
         {
          //--- Quadrado foi rompido: verificar limite de entrada
+         //--- Recalcular boundaries finais
+         double squareTop, squareBottom;
+         if(is_bullish)
+           {
+            squareBottom=squareBasePrice;
+            squareTop=squareBasePrice+(InpSquareHeight*_Point);
+           }
+         else
+           {
+            squareTop=squareBasePrice;
+            squareBottom=squareBasePrice-(InpSquareHeight*_Point);
+           }
+
          bool withinEntryLimit=false;
 
          if(is_bullish)
@@ -886,29 +934,6 @@ void ManageSquare(int rates_total, const datetime &time[],
            {
             //--- Breakout fora do limite de entrada, travar o quadrado
             squareState=SQUARE_LOCKED;
-           }
-        }
-      else
-        {
-         //--- Nenhum rompimento: atualizar base dinamicamente (move o quadrado)
-         if(!squareLockedAt110)
-           {
-            if(is_bullish)
-              {
-               for(int i=squareStartBar; i<=current_bar; i++)
-                 {
-                  if(low[i]<squareBasePrice)
-                     squareBasePrice=low[i];
-                 }
-              }
-            else
-              {
-               for(int i=squareStartBar; i<=current_bar; i++)
-                 {
-                  if(high[i]>squareBasePrice)
-                     squareBasePrice=high[i];
-                 }
-              }
            }
         }
 
