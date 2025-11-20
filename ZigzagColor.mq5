@@ -32,6 +32,7 @@ double HistoryHighs[];    // Histórico de topos
 double HistoryLows[];     // Histórico de fundos
 int HistoryHighsPos[];    // Posições dos topos
 int HistoryLowsPos[];     // Posições dos fundos
+int HistoryColors[];      // Cores fixas de cada extremo
 int HighCount=0;          // Contador de topos
 int LowCount=0;           // Contador de fundos
 
@@ -77,15 +78,17 @@ void OnInit()
    ArrayResize(HistoryLows,100);
    ArrayResize(HistoryHighsPos,100);
    ArrayResize(HistoryLowsPos,100);
+   ArrayResize(HistoryColors,100);
    ArrayInitialize(HistoryHighs,0.0);
    ArrayInitialize(HistoryLows,0.0);
    ArrayInitialize(HistoryHighsPos,0);
    ArrayInitialize(HistoryLowsPos,0);
+   ArrayInitialize(HistoryColors,1); // Amarelo por padrão
   }
 //+------------------------------------------------------------------+
 //| Adiciona um topo ao histórico                                    |
 //+------------------------------------------------------------------+
-void AddHighToHistory(double high_value,int pos)
+void AddHighToHistory(double high_value,int pos,int color)
   {
    if(HighCount>=ArraySize(HistoryHighs))
      {
@@ -95,11 +98,17 @@ void AddHighToHistory(double high_value,int pos)
    HistoryHighs[HighCount]=high_value;
    HistoryHighsPos[HighCount]=pos;
    HighCount++;
+
+   // Salvar cor fixa para este extremo
+   int total_idx=HighCount+LowCount-1;
+   if(total_idx>=ArraySize(HistoryColors))
+      ArrayResize(HistoryColors,ArraySize(HistoryColors)+50);
+   HistoryColors[total_idx]=color;
   }
 //+------------------------------------------------------------------+
 //| Adiciona um fundo ao histórico                                   |
 //+------------------------------------------------------------------+
-void AddLowToHistory(double low_value,int pos)
+void AddLowToHistory(double low_value,int pos,int color)
   {
    if(LowCount>=ArraySize(HistoryLows))
      {
@@ -109,6 +118,12 @@ void AddLowToHistory(double low_value,int pos)
    HistoryLows[LowCount]=low_value;
    HistoryLowsPos[LowCount]=pos;
    LowCount++;
+
+   // Salvar cor fixa para este extremo
+   int total_idx=HighCount+LowCount-1;
+   if(total_idx>=ArraySize(HistoryColors))
+      ArrayResize(HistoryColors,ArraySize(HistoryColors)+50);
+   HistoryColors[total_idx]=color;
   }
 //+------------------------------------------------------------------+
 //| Determina cor do trecho baseado no padrão de topos e fundos      |
@@ -177,6 +192,7 @@ int OnCalculate(const int rates_total,
       ArrayInitialize(HistoryLows,0.0);
       ArrayInitialize(HistoryHighsPos,0);
       ArrayInitialize(HistoryLowsPos,0);
+      ArrayInitialize(HistoryColors,1); // Amarelo por padrão
       HighCount=0;
       LowCount=0;
       //--- start calculation from bar number InpDepth
@@ -205,11 +221,11 @@ int OnCalculate(const int rates_total,
         {
          if(ZigzagPeakBuffer[j]!=0)
            {
-            AddHighToHistory(ZigzagPeakBuffer[j],j);
+            AddHighToHistory(ZigzagPeakBuffer[j],j,(int)ColorBuffer[j]);
            }
          if(ZigzagBottomBuffer[j]!=0)
            {
-            AddLowToHistory(ZigzagBottomBuffer[j],j);
+            AddLowToHistory(ZigzagBottomBuffer[j],j,(int)ColorBuffer[j]);
            }
         }
 
@@ -312,8 +328,9 @@ int OnCalculate(const int rates_total,
                   last_high_pos=shift;
                   extreme_search=-1;
                   ZigzagPeakBuffer[shift]=last_high;
-                  AddHighToHistory(last_high,shift);
-                  ColorBuffer[shift]=GetTrendColor();
+                  int color=GetTrendColor();
+                  ColorBuffer[shift]=color;
+                  AddHighToHistory(last_high,shift,color);
                   res=1;
                  }
                if(LowMapBuffer[shift]!=0)
@@ -322,8 +339,9 @@ int OnCalculate(const int rates_total,
                   last_low_pos=shift;
                   extreme_search=1;
                   ZigzagBottomBuffer[shift]=last_low;
-                  AddLowToHistory(last_low,shift);
-                  ColorBuffer[shift]=GetTrendColor();
+                  int color=GetTrendColor();
+                  ColorBuffer[shift]=color;
+                  AddLowToHistory(last_low,shift,color);
                   res=1;
                  }
               }
@@ -340,8 +358,9 @@ int OnCalculate(const int rates_total,
                // Remover o último fundo do histórico e adicionar o novo
                if(LowCount>0)
                   LowCount--;
-               AddLowToHistory(last_low,shift);
-               ColorBuffer[shift]=GetTrendColor();
+               int color=GetTrendColor();
+               ColorBuffer[shift]=color;
+               AddLowToHistory(last_low,shift,color);
 
                res=1;
               }
@@ -351,8 +370,9 @@ int OnCalculate(const int rates_total,
                last_high_pos=shift;
                ZigzagPeakBuffer[shift]=last_high;
 
-               AddHighToHistory(last_high,shift);
-               ColorBuffer[shift]=GetTrendColor();
+               int color=GetTrendColor();
+               ColorBuffer[shift]=color;
+               AddHighToHistory(last_high,shift,color);
 
                extreme_search=Bottom;
                res=1;
@@ -371,8 +391,9 @@ int OnCalculate(const int rates_total,
                // Remover o último topo do histórico e adicionar o novo
                if(HighCount>0)
                   HighCount--;
-               AddHighToHistory(last_high,shift);
-               ColorBuffer[shift]=GetTrendColor();
+               int color=GetTrendColor();
+               ColorBuffer[shift]=color;
+               AddHighToHistory(last_high,shift,color);
               }
             if(LowMapBuffer[shift]!=0.0 && HighMapBuffer[shift]==0.0)
               {
@@ -380,8 +401,9 @@ int OnCalculate(const int rates_total,
                last_low_pos=shift;
                ZigzagBottomBuffer[shift]=last_low;
 
-               AddLowToHistory(last_low,shift);
-               ColorBuffer[shift]=GetTrendColor();
+               int color=GetTrendColor();
+               ColorBuffer[shift]=color;
+               AddLowToHistory(last_low,shift,color);
 
                extreme_search=Peak;
               }
