@@ -69,12 +69,14 @@ string fiboLabels[]={"0.0%", "69.2%", "100.0%", "110.0%"};
 //--- Square state variables
 bool squareActive=false;
 datetime squareStartTime=0;
+int squareStartBar=0; // Bar index where square was activated
 double squareBasePrice=0; // For bullish: base, for bearish: top
 int squareDirection=0; // 1=bullish (100% at bottom), -1=bearish (100% at top)
 double fibo692Price=0;
 double fibo110Price=0;
 double fibo100Price=0;
 double fibo0Price=0;
+int currentLegEndPos=0; // To track if leg changed
 
 //+------------------------------------------------------------------+
 //| Custom indicator initialization function                         |
@@ -322,13 +324,28 @@ int OnCalculate(const int rates_total,
         }
      }
 
-//--- Draw Fibonacci Retracement
-   if(InpShowFibo)
-      DrawFibonacciRetracement(rates_total, time);
+//--- Draw Fibonacci Retracement and manage square
+   int leg_start_pos, leg_end_pos;
+   double leg_start_price, leg_end_price;
+   int leg_color;
+   bool has_valid_leg=FindLastCompletedLeg(rates_total, leg_start_pos, leg_end_pos,
+                                            leg_start_price, leg_end_price, leg_color);
+
+   if(InpShowFibo && has_valid_leg)
+      DrawFibonacciRetracement(rates_total, time, leg_start_pos, leg_end_pos,
+                               leg_start_price, leg_end_price, leg_color);
+   else if(!has_valid_leg)
+      ObjectsDeleteAll(0,fiboPrefix);
 
 //--- Manage Square
-   if(InpShowSquare)
-      ManageSquare(rates_total, time, high, low, close);
+   if(InpShowSquare && has_valid_leg)
+      ManageSquare(rates_total, time, high, low, close,
+                   leg_start_pos, leg_end_pos, leg_start_price, leg_end_price, leg_color);
+   else if(!has_valid_leg && squareActive)
+     {
+      squareActive=false;
+      ObjectsDeleteAll(0,squarePrefix);
+     }
 
 //--- Update progress panel
    if(InpShowPanel)
@@ -399,25 +416,31 @@ bool FindLastCompletedLeg(int rates_total,
 //+------------------------------------------------------------------+
 //| Draw Fibonacci Retracement                                       |
 //+------------------------------------------------------------------+
-void DrawFibonacciRetracement(int rates_total, const datetime &time[])
+void DrawFibonacciRetracement(int rates_total, const datetime &time[],
+                              int leg_start_pos, int leg_end_pos,
+                              double leg_start_price, double leg_end_price,
+                              int leg_color)
   {
-   int leg_start_pos, leg_end_pos;
-   double leg_start_price, leg_end_price;
-   int leg_color;
-
-//--- Find the last completed leg
-   if(!FindLastCompletedLeg(rates_total, leg_start_pos, leg_end_pos,
-                            leg_start_price, leg_end_price, leg_color))
-     {
-      //--- No completed leg found, delete all fibonacci objects
-      ObjectsDeleteAll(0,fiboPrefix);
-      return;
-     }
-
 //--- Calculate Fibonacci levels
    double range=leg_end_price-leg_start_price;
    datetime start_time=time[leg_start_pos];
    datetime end_time=time[leg_end_pos];
+
+//--- Draw vertical line at leg_end_pos (when Fibonacci was plotted)
+   string vline_name=fiboPrefix+"VLine";
+   if(ObjectFind(0,vline_name)<0)
+     {
+      ObjectCreate(0,vline_name,OBJ_VLINE,0,end_time,0);
+      ObjectSetInteger(0,vline_name,OBJPROP_COLOR,clrBlue);
+      ObjectSetInteger(0,vline_name,OBJPROP_STYLE,STYLE_SOLID);
+      ObjectSetInteger(0,vline_name,OBJPROP_WIDTH,2);
+      ObjectSetInteger(0,vline_name,OBJPROP_BACK,true);
+      ObjectSetInteger(0,vline_name,OBJPROP_SELECTABLE,false);
+     }
+   else
+     {
+      ObjectMove(0,vline_name,0,end_time,0);
+     }
 
 //--- Check if leg_start is a peak (topo) or bottom (fundo)
    bool leg_start_is_peak=(ZigzagPeakBuffer[leg_start_pos]!=0.0);
@@ -478,23 +501,17 @@ void DrawFibonacciRetracement(int rates_total, const datetime &time[])
 //+------------------------------------------------------------------+
 void ManageSquare(int rates_total, const datetime &time[],
                   const double &high[], const double &low[],
-                  const double &close[])
+                  const double &close[],
+                  int leg_start_pos, int leg_end_pos,
+                  double leg_start_price, double leg_end_price,
+                  int leg_color)
   {
-   int leg_start_pos, leg_end_pos;
-   double leg_start_price, leg_end_price;
-   int leg_color;
-
-//--- Find the last completed leg
-   if(!FindLastCompletedLeg(rates_total, leg_start_pos, leg_end_pos,
-                            leg_start_price, leg_end_price, leg_color))
+//--- Check if leg changed - if yes, reset square
+   if(currentLegEndPos!=leg_end_pos)
      {
-      //--- No completed leg, deactivate square
-      if(squareActive)
-        {
-         squareActive=false;
-         ObjectsDeleteAll(0,squarePrefix);
-        }
-      return;
+      squareActive=false;
+      ObjectsDeleteAll(0,squarePrefix);
+      currentLegEndPos=leg_end_pos;
      }
 
 //--- Calculate Fibonacci levels
@@ -524,8 +541,8 @@ void ManageSquare(int rates_total, const datetime &time[],
 //--- Check if square should be activated
    if(!squareActive)
      {
-      //--- Check for touch on 69.2% level
-      for(int i=leg_end_pos; i<rates_total; i++)
+      //--- Check for touch on 69.2% level AFTER leg_end_pos
+      for(int i=leg_end_pos+1; i<rates_total; i++)
         {
          bool touched=false;
 
@@ -546,6 +563,7 @@ void ManageSquare(int rates_total, const datetime &time[],
            {
             squareActive=true;
             squareStartTime=time[i];
+            squareStartBar=i;
 
             if(is_bullish)
                squareBasePrice=low[i]; // Start with current low
@@ -562,22 +580,22 @@ void ManageSquare(int rates_total, const datetime &time[],
      {
       int current_bar=rates_total-1;
 
-      //--- Update base/top price dynamically
+      //--- Update base/top price dynamically from activation point
       if(is_bullish)
         {
          //--- For bullish: update base with lowest low since activation
-         for(int i=leg_end_pos; i<=current_bar; i++)
+         for(int i=squareStartBar; i<=current_bar; i++)
            {
-            if(time[i]>=squareStartTime && low[i]<squareBasePrice)
+            if(low[i]<squareBasePrice)
                squareBasePrice=low[i];
            }
         }
       else
         {
          //--- For bearish: update top with highest high since activation
-         for(int i=leg_end_pos; i<=current_bar; i++)
+         for(int i=squareStartBar; i<=current_bar; i++)
            {
-            if(time[i]>=squareStartTime && high[i]>squareBasePrice)
+            if(high[i]>squareBasePrice)
                squareBasePrice=high[i];
            }
         }
@@ -624,26 +642,28 @@ void ManageSquare(int rates_total, const datetime &time[],
 //+------------------------------------------------------------------+
 void DrawSquare(const datetime &time[], int current_bar, bool is_bullish)
   {
-//--- Calculate square end time (10 candles width)
-   datetime end_time=time[current_bar];
+//--- Square starts at activation time
+   datetime start_time=squareStartTime;
 
-//--- Find start time index
-   int start_bar=current_bar-InpSquareWidth;
-   if(start_bar<0) start_bar=0;
-   datetime start_time=time[start_bar];
+//--- Calculate square end time (activation + 10 candles)
+   int end_bar=squareStartBar+InpSquareWidth;
+   if(end_bar>=ArraySize(time)) end_bar=ArraySize(time)-1;
+   datetime end_time=time[end_bar];
 
 //--- Calculate square prices
    double price1, price2;
 
    if(is_bullish)
      {
-      price1=squareBasePrice; // Bottom
-      price2=squareBasePrice+(InpSquareHeight*_Point); // Top
+      //--- For bullish: base is dynamic (follows lows), top is fixed
+      price1=squareBasePrice; // Bottom (dynamic)
+      price2=squareBasePrice+(InpSquareHeight*_Point); // Top (fixed relative to base)
      }
    else
      {
-      price1=squareBasePrice-(InpSquareHeight*_Point); // Bottom
-      price2=squareBasePrice; // Top
+      //--- For bearish: top is dynamic (follows highs), bottom is fixed
+      price1=squareBasePrice-(InpSquareHeight*_Point); // Bottom (fixed relative to top)
+      price2=squareBasePrice; // Top (dynamic)
      }
 
 //--- Draw rectangle
