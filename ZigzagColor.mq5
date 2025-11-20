@@ -23,7 +23,7 @@ input int  InpDeviation   =5;     // Deviation
 input int  InpBackstep    =3;     // Back Step
 input bool InpShowLine    =true;  // Show ZigZag Line
 input int  InpLineWidth   =2;     // Line Width (1-5)
-input int  InpCircleSize  =5;     // Circle Size (1-10)
+input int  InpCircleSize  =5;     // Circle Size (1-20)
 //--- indicator buffers
 double ZigzagPeakBuffer[];
 double ZigzagBottomBuffer[];
@@ -80,7 +80,7 @@ void OnInit()
 //--- configurar símbolos de quebra (círculos)
    int circle_size=InpCircleSize;
    if(circle_size<1) circle_size=1;
-   if(circle_size>10) circle_size=10;
+   if(circle_size>20) circle_size=20;
 
    PlotIndexSetInteger(1,PLOT_ARROW,159); // Círculo para quebra de alta
    PlotIndexSetInteger(1,PLOT_LINE_WIDTH,circle_size);
