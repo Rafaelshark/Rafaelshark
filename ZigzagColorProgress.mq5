@@ -728,6 +728,13 @@ void ManageSquare(int rates_total, const datetime &time[],
             else
                squareBasePrice=high[i];
 
+            //--- Debug: Print 110% level info
+            Print("═══ SQUARE ACTIVATED ═══");
+            Print("Direction: ", is_bullish ? "BULLISH" : "BEARISH");
+            Print("Fibo 100%: ", DoubleToString(fibo100Price, _Digits));
+            Print("Fibo 110%: ", DoubleToString(fibo110Price, _Digits));
+            Print("110% is ", (fibo110Price < fibo100Price ? "BELOW" : "ABOVE"), " 100%");
+
             break;
            }
         }
@@ -736,6 +743,9 @@ void ManageSquare(int rates_total, const datetime &time[],
 //--- STATE: ACTIVE - Monitor for breakout, 110% breach, or entry limit violation
    if(squareState==SQUARE_ACTIVE)
      {
+      //--- Draw 110% level line for visualization
+      Draw110Level(time, current_bar, is_bullish);
+
       //--- Calculate square boundaries
       double squareTop, squareBottom;
       if(is_bullish)
@@ -788,6 +798,11 @@ void ManageSquare(int rates_total, const datetime &time[],
               {
                broke110=true;
                last110CheckBar=i;
+               Print("═══ 110% BREACHED ═══");
+               Print("Bar: ", i);
+               Print("Close price: ", DoubleToString(close[i], _Digits));
+               Print("Fibo 110%: ", DoubleToString(fibo110Price, _Digits));
+               Print("Direction: ", is_bullish ? "BULLISH - closed BELOW 110%" : "BEARISH - closed ABOVE 110%");
                break; // 110% tem prioridade máxima
               }
            }
@@ -924,6 +939,9 @@ void ManageSquare(int rates_total, const datetime &time[],
 //--- STATE: TRIGGERED - Esperar take ou stop
    if(squareState==SQUARE_TRIGGERED)
      {
+      //--- Draw 110% level line for visualization
+      Draw110Level(time, current_bar, is_bullish);
+
       bool hitTake=false;
       bool hitStop=false;
 
@@ -959,6 +977,9 @@ void ManageSquare(int rates_total, const datetime &time[],
 //--- STATE: LOCKED - Esperar nova leg
    if(squareState==SQUARE_LOCKED)
      {
+      //--- Draw 110% level line for visualization
+      Draw110Level(time, current_bar, is_bullish);
+
       //--- Manter desenhando o quadrado travado
       DrawSquare(time, current_bar, is_bullish);
 
@@ -1143,6 +1164,57 @@ void DrawTakeProfitStopLoss(const datetime &time[], int current_bar, bool is_bul
    else
      {
       ObjectMove(0,sl_label_name,0,label_time,stopLossPrice);
+     }
+  }
+//+------------------------------------------------------------------+
+//| Draw 110% Level Line for Visualization                          |
+//+------------------------------------------------------------------+
+void Draw110Level(const datetime &time[], int current_bar, bool is_bullish)
+  {
+//--- Check if square is initialized
+   if(squareStartTime==0 || fibo110Price==0)
+      return;
+
+//--- Calculate start/end time for the line (same as square)
+   datetime start_time=squareStartTime;
+   int end_bar=squareStartBar+InpSquareWidth;
+   if(end_bar>=ArraySize(time)) end_bar=ArraySize(time)-1;
+   datetime end_time=time[end_bar];
+
+//--- Draw 110% line (RED and thick for visibility)
+   string line110_name=squarePrefix+"Fibo110";
+   if(ObjectFind(0,line110_name)<0)
+     {
+      ObjectCreate(0,line110_name,OBJ_TREND,0,start_time,fibo110Price,end_time,fibo110Price);
+      ObjectSetInteger(0,line110_name,OBJPROP_COLOR,clrRed);
+      ObjectSetInteger(0,line110_name,OBJPROP_STYLE,STYLE_SOLID);
+      ObjectSetInteger(0,line110_name,OBJPROP_WIDTH,3);
+      ObjectSetInteger(0,line110_name,OBJPROP_RAY_RIGHT,true);
+      ObjectSetInteger(0,line110_name,OBJPROP_RAY_LEFT,false);
+      ObjectSetInteger(0,line110_name,OBJPROP_BACK,false);
+      ObjectSetInteger(0,line110_name,OBJPROP_SELECTABLE,false);
+     }
+   else
+     {
+      ObjectMove(0,line110_name,0,start_time,fibo110Price);
+      ObjectMove(0,line110_name,1,end_time,fibo110Price);
+     }
+
+//--- Draw label for 110%
+   string label110_name=squarePrefix+"Fibo110Label";
+   if(ObjectFind(0,label110_name)<0)
+     {
+      ObjectCreate(0,label110_name,OBJ_TEXT,0,end_time,fibo110Price);
+      ObjectSetString(0,label110_name,OBJPROP_FONT,"Arial Bold");
+      ObjectSetInteger(0,label110_name,OBJPROP_FONTSIZE,12);
+      ObjectSetInteger(0,label110_name,OBJPROP_COLOR,clrRed);
+      ObjectSetString(0,label110_name,OBJPROP_TEXT,"  ▼ 110% FIBO ▼");
+      ObjectSetInteger(0,label110_name,OBJPROP_ANCHOR,ANCHOR_LEFT);
+      ObjectSetInteger(0,label110_name,OBJPROP_SELECTABLE,false);
+     }
+   else
+     {
+      ObjectMove(0,label110_name,0,end_time,fibo110Price);
      }
   }
 //+------------------------------------------------------------------+
