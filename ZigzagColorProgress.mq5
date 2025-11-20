@@ -36,14 +36,15 @@ input bool InpShowFiboLabels=true; // Show Fibonacci Labels
 
 //--- Square inputs
 input bool InpShowSquare=true; // Show Square
+input int InpLegsBack=0; // Legs Back (0=current, 1=1 leg back, 2=2 legs back)
 input double InpActivationLevel=0.692; // Activation Level (0.0 to 1.10)
 input int InpSquareHeight=400; // Square Height (points)
 input int InpSquareWidth=10; // Square Width (candles)
 input color InpSquareColor=clrBlack; // Square Color
 input int InpSquareWidth_Line=2; // Square Line Width
-input int InpEntryLimit=50; // Entry Limit (points from activation level)
-input int InpTakeProfit=200; // Take Profit (points from top of square)
-input int InpStopLoss=100; // Stop Loss (points from base of square)
+input int InpEntryLimit=250; // Entry Limit (points from square breakout level)
+input int InpTakeProfit=500; // Take Profit (points from entry)
+input int InpStopLoss=150; // Stop Loss (points from entry)
 
 //--- indicator buffers
 double ZigzagPeakBuffer[];
@@ -89,6 +90,7 @@ double fiboActivationPrice=0; // Dynamic activation level price
 double fibo110Price=0;
 double fibo100Price=0;
 double fibo0Price=0;
+double entryPrice=0; // Entry price when breakout occurs
 double entryLimitPrice=0;
 double takeProfitPrice=0;
 double stopLossPrice=0;
@@ -384,13 +386,24 @@ bool FindLastCompletedLeg(int rates_total,
                           double &leg_start_price, double &leg_end_price,
                           int &leg_color)
   {
+//--- Calculate how many extremes we need: 3 + 2*InpLegsBack
+//--- For InpLegsBack=0: need 3 extremes (current leg)
+//--- For InpLegsBack=1: need 5 extremes (1 leg back)
+//--- For InpLegsBack=2: need 7 extremes (2 legs back)
+   int required_extremes=3+2*InpLegsBack;
    int extremes_found=0;
-   int positions[3];
-   double prices[3];
-   int colors[3];
+
+//--- Dynamic arrays to store extremes
+   int positions[];
+   double prices[];
+   int colors[];
+
+   ArrayResize(positions,required_extremes);
+   ArrayResize(prices,required_extremes);
+   ArrayResize(colors,required_extremes);
 
 //--- Search from the most recent bar backwards
-   for(int i=rates_total-1; i>=0 && extremes_found<3; i--)
+   for(int i=rates_total-1; i>=0 && extremes_found<required_extremes; i--)
      {
       double peak_val=ZigzagPeakBuffer[i];
       double bottom_val=ZigzagBottomBuffer[i];
@@ -411,23 +424,28 @@ bool FindLastCompletedLeg(int rates_total,
         }
      }
 
-//--- Need at least 3 extremes to have a completed leg
-   if(extremes_found<3)
+//--- Need at least required_extremes to have the desired leg
+   if(extremes_found<required_extremes)
       return false;
 
-//--- The last completed leg is between positions[1] and positions[2]
-//--- (positions[0] is the current incomplete leg endpoint)
-   leg_start_pos=positions[2];
-   leg_end_pos=positions[1];
-   leg_start_price=prices[2];
-   leg_end_price=prices[1];
+//--- Calculate indices for the desired leg
+//--- For InpLegsBack=0: positions[2] and positions[1]
+//--- For InpLegsBack=1: positions[4] and positions[3]
+//--- For InpLegsBack=2: positions[6] and positions[5]
+   int start_idx=2+2*InpLegsBack;
+   int end_idx=1+2*InpLegsBack;
+
+   leg_start_pos=positions[start_idx];
+   leg_end_pos=positions[end_idx];
+   leg_start_price=prices[start_idx];
+   leg_end_price=prices[end_idx];
 
 //--- Determine leg color (direction)
 //--- If going from bottom to peak = Blue (bullish)
 //--- If going from peak to bottom = Red (bearish)
-   if(colors[2]==1 && colors[1]==0)
+   if(colors[start_idx]==1 && colors[end_idx]==0)
       leg_color=0; // Blue - upward leg (from bottom to peak)
-   else if(colors[2]==0 && colors[1]==1)
+   else if(colors[start_idx]==0 && colors[end_idx]==1)
       leg_color=1; // Red - downward leg (from peak to bottom)
    else
       return false; // Invalid leg
@@ -698,12 +716,6 @@ void ManageSquare(int rates_total, const datetime &time[],
             else
                squareBasePrice=high[i];
 
-            //--- Calculate entry limit
-            if(is_bullish)
-               entryLimitPrice=fiboActivationPrice-InpEntryLimit*_Point;
-            else
-               entryLimitPrice=fiboActivationPrice+InpEntryLimit*_Point;
-
             break;
            }
         }
@@ -763,46 +775,63 @@ void ManageSquare(int rates_total, const datetime &time[],
          squareBottom=squareBasePrice-(InpSquareHeight*_Point);
         }
 
-      //--- Check for entry limit violation (candle larger than limit)
-      bool entryLimitViolated=false;
+      //--- Check for breakout and verify entry limit
+      bool breakout=false;
+      bool withinEntryLimit=false;
+
       if(is_bullish)
         {
-         if(low[current_bar]<entryLimitPrice)
-            entryLimitViolated=true;
+         //--- Bullish: check if broke above square top
+         if(high[current_bar]>squareTop)
+           {
+            breakout=true;
+            //--- Check if current price is within entry limit (250 points from top)
+            double maxEntryPrice=squareTop+InpEntryLimit*_Point;
+            if(close[current_bar]<=maxEntryPrice)
+               withinEntryLimit=true;
+           }
         }
       else
         {
-         if(high[current_bar]>entryLimitPrice)
-            entryLimitViolated=true;
+         //--- Bearish: check if broke below square bottom
+         if(low[current_bar]<squareBottom)
+           {
+            breakout=true;
+            //--- Check if current price is within entry limit (250 points from bottom)
+            double minEntryPrice=squareBottom-InpEntryLimit*_Point;
+            if(close[current_bar]>=minEntryPrice)
+               withinEntryLimit=true;
+           }
         }
-
-      if(entryLimitViolated)
-        {
-         squareState=SQUARE_LOCKED;
-         return;
-        }
-
-      //--- Check for breakout
-      bool breakout=false;
-      if(is_bullish && high[current_bar]>squareTop)
-         breakout=true;
-      else if(!is_bullish && low[current_bar]<squareBottom)
-         breakout=true;
 
       if(breakout)
         {
-         squareState=SQUARE_TRIGGERED;
-
-         //--- Calculate take and stop
-         if(is_bullish)
+         if(withinEntryLimit)
            {
-            takeProfitPrice=squareTop+InpTakeProfit*_Point;
-            stopLossPrice=squareBottom-InpStopLoss*_Point;
+            squareState=SQUARE_TRIGGERED;
+
+            //--- Save entry price (breakout level)
+            if(is_bullish)
+               entryPrice=squareTop;
+            else
+               entryPrice=squareBottom;
+
+            //--- Calculate take and stop from ENTRY price
+            if(is_bullish)
+              {
+               takeProfitPrice=entryPrice+InpTakeProfit*_Point;
+               stopLossPrice=entryPrice-InpStopLoss*_Point;
+              }
+            else
+              {
+               takeProfitPrice=entryPrice-InpTakeProfit*_Point;
+               stopLossPrice=entryPrice+InpStopLoss*_Point;
+              }
            }
          else
            {
-            takeProfitPrice=squareBottom-InpTakeProfit*_Point;
-            stopLossPrice=squareTop+InpStopLoss*_Point;
+            //--- Breakout occurred but outside entry limit, lock the square
+            squareState=SQUARE_LOCKED;
            }
          return;
         }
@@ -812,17 +841,20 @@ void ManageSquare(int rates_total, const datetime &time[],
       DrawSquare(time, current_bar, is_bullish);
 
       //--- Calculate take and stop for display (even before breakout)
+      //--- Use the potential entry price (top/bottom of square)
       if(is_bullish)
         {
          double squareTop=squareBasePrice+(InpSquareHeight*_Point);
-         takeProfitPrice=squareTop+InpTakeProfit*_Point;
-         stopLossPrice=squareBasePrice-InpStopLoss*_Point;
+         double potentialEntry=squareTop;
+         takeProfitPrice=potentialEntry+InpTakeProfit*_Point;
+         stopLossPrice=potentialEntry-InpStopLoss*_Point;
         }
       else
         {
          double squareBottom=squareBasePrice-(InpSquareHeight*_Point);
-         takeProfitPrice=squareBottom-InpTakeProfit*_Point;
-         stopLossPrice=squareBasePrice+InpStopLoss*_Point;
+         double potentialEntry=squareBottom;
+         takeProfitPrice=potentialEntry-InpTakeProfit*_Point;
+         stopLossPrice=potentialEntry+InpStopLoss*_Point;
         }
 
       //--- Draw Take Profit and Stop Loss lines
@@ -870,17 +902,20 @@ void ManageSquare(int rates_total, const datetime &time[],
       DrawSquare(time, current_bar, is_bullish);
 
       //--- Calculate take and stop for display
+      //--- Use the potential entry price (top/bottom of square)
       if(is_bullish)
         {
          double squareTop=squareBasePrice+(InpSquareHeight*_Point);
-         takeProfitPrice=squareTop+InpTakeProfit*_Point;
-         stopLossPrice=squareBasePrice-InpStopLoss*_Point;
+         double potentialEntry=squareTop;
+         takeProfitPrice=potentialEntry+InpTakeProfit*_Point;
+         stopLossPrice=potentialEntry-InpStopLoss*_Point;
         }
       else
         {
          double squareBottom=squareBasePrice-(InpSquareHeight*_Point);
-         takeProfitPrice=squareBottom-InpTakeProfit*_Point;
-         stopLossPrice=squareBasePrice+InpStopLoss*_Point;
+         double potentialEntry=squareBottom;
+         takeProfitPrice=potentialEntry-InpTakeProfit*_Point;
+         stopLossPrice=potentialEntry+InpStopLoss*_Point;
         }
 
       //--- Draw Take Profit and Stop Loss lines
