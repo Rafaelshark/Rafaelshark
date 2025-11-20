@@ -35,12 +35,13 @@ input int InpFiboWidth=1; // Fibonacci Line Width
 input bool InpShowFiboLabels=true; // Show Fibonacci Labels
 
 //--- Square inputs
-input bool InpShowSquare=true; // Show 69.2% Square
+input bool InpShowSquare=true; // Show Square
+input double InpActivationLevel=0.692; // Activation Level (0.0 to 1.10)
 input int InpSquareHeight=400; // Square Height (points)
 input int InpSquareWidth=10; // Square Width (candles)
 input color InpSquareColor=clrBlack; // Square Color
 input int InpSquareWidth_Line=2; // Square Line Width
-input int InpEntryLimit=50; // Entry Limit (points from 69.2%)
+input int InpEntryLimit=50; // Entry Limit (points from activation level)
 input int InpTakeProfit=200; // Take Profit (points from top of square)
 input int InpStopLoss=100; // Stop Loss (points from base of square)
 
@@ -84,7 +85,7 @@ datetime squareStartTime=0;
 int squareStartBar=0;
 double squareBasePrice=0; // For bullish: base, for bearish: top
 int squareDirection=0; // 1=bullish (100% at bottom), -1=bearish (100% at top)
-double fibo692Price=0;
+double fiboActivationPrice=0; // Dynamic activation level price
 double fibo110Price=0;
 double fibo100Price=0;
 double fibo0Price=0;
@@ -461,6 +462,59 @@ void DrawFibonacciRetracement(int rates_total, const datetime &time[],
 //--- Check if leg_start is a peak (topo) or bottom (fundo)
    bool leg_start_is_peak=(ZigzagPeakBuffer[leg_start_pos]!=0.0);
 
+//--- Draw activation level if not in default levels
+   bool activationLevelExists=false;
+   for(int j=0; j<ArraySize(fiboLevels); j++)
+     {
+      if(MathAbs(fiboLevels[j]-InpActivationLevel)<0.001)
+        {
+         activationLevelExists=true;
+         break;
+        }
+     }
+
+   if(!activationLevelExists)
+     {
+      double activation_price=leg_start_price+range*(1.0-InpActivationLevel);
+      string activation_line_name=fiboPrefix+"Line_Activation";
+
+      if(ObjectFind(0,activation_line_name)<0)
+        {
+         ObjectCreate(0,activation_line_name,OBJ_TREND,0,start_time,activation_price,end_time,activation_price);
+         ObjectSetInteger(0,activation_line_name,OBJPROP_COLOR,clrRed);
+         ObjectSetInteger(0,activation_line_name,OBJPROP_STYLE,STYLE_SOLID);
+         ObjectSetInteger(0,activation_line_name,OBJPROP_WIDTH,2);
+         ObjectSetInteger(0,activation_line_name,OBJPROP_RAY_RIGHT,true);
+         ObjectSetInteger(0,activation_line_name,OBJPROP_RAY_LEFT,false);
+         ObjectSetInteger(0,activation_line_name,OBJPROP_SELECTABLE,false);
+         ObjectSetInteger(0,activation_line_name,OBJPROP_BACK,true);
+        }
+      else
+        {
+         ObjectMove(0,activation_line_name,0,start_time,activation_price);
+         ObjectMove(0,activation_line_name,1,end_time,activation_price);
+        }
+
+      if(InpShowFiboLabels)
+        {
+         string activation_label_name=fiboPrefix+"Label_Activation";
+         if(ObjectFind(0,activation_label_name)<0)
+           {
+            ObjectCreate(0,activation_label_name,OBJ_TEXT,0,end_time,activation_price);
+            ObjectSetString(0,activation_label_name,OBJPROP_FONT,"Arial");
+            ObjectSetInteger(0,activation_label_name,OBJPROP_FONTSIZE,8);
+            ObjectSetInteger(0,activation_label_name,OBJPROP_COLOR,clrRed);
+            ObjectSetInteger(0,activation_label_name,OBJPROP_ANCHOR,ANCHOR_LEFT);
+            ObjectSetInteger(0,activation_label_name,OBJPROP_SELECTABLE,false);
+            ObjectSetInteger(0,activation_label_name,OBJPROP_BACK,true);
+           }
+
+         string activation_label_text=DoubleToString(InpActivationLevel*100,1)+"% ("+DoubleToString(activation_price,_Digits)+")";
+         ObjectSetString(0,activation_label_name,OBJPROP_TEXT,activation_label_text);
+         ObjectMove(0,activation_label_name,0,end_time,activation_price);
+        }
+     }
+
 //--- Draw each Fibonacci level
    for(int i=0; i<ArraySize(fiboLevels); i++)
      {
@@ -470,15 +524,18 @@ void DrawFibonacciRetracement(int rates_total, const datetime &time[],
       //--- Use (1.0-fiboLevels[i]) so that 100% maps to leg_start_price
       level_price=leg_start_price+range*(1.0-fiboLevels[i]);
 
+      //--- Check if this is the activation level
+      bool isActivationLevel=(MathAbs(fiboLevels[i]-InpActivationLevel)<0.001);
+
       //--- Create or update trend line
       string line_name=fiboPrefix+"Line_"+IntegerToString(i);
 
       if(ObjectFind(0,line_name)<0)
         {
          ObjectCreate(0,line_name,OBJ_TREND,0,start_time,level_price,end_time,level_price);
-         ObjectSetInteger(0,line_name,OBJPROP_COLOR,InpFiboColor);
-         ObjectSetInteger(0,line_name,OBJPROP_STYLE,InpFiboStyle);
-         ObjectSetInteger(0,line_name,OBJPROP_WIDTH,InpFiboWidth);
+         ObjectSetInteger(0,line_name,OBJPROP_COLOR,isActivationLevel ? clrRed : InpFiboColor);
+         ObjectSetInteger(0,line_name,OBJPROP_STYLE,isActivationLevel ? STYLE_SOLID : InpFiboStyle);
+         ObjectSetInteger(0,line_name,OBJPROP_WIDTH,isActivationLevel ? 2 : InpFiboWidth);
          ObjectSetInteger(0,line_name,OBJPROP_RAY_RIGHT,true);
          ObjectSetInteger(0,line_name,OBJPROP_RAY_LEFT,false);
          ObjectSetInteger(0,line_name,OBJPROP_SELECTABLE,false);
@@ -488,6 +545,9 @@ void DrawFibonacciRetracement(int rates_total, const datetime &time[],
         {
          ObjectMove(0,line_name,0,start_time,level_price);
          ObjectMove(0,line_name,1,end_time,level_price);
+         ObjectSetInteger(0,line_name,OBJPROP_COLOR,isActivationLevel ? clrRed : InpFiboColor);
+         ObjectSetInteger(0,line_name,OBJPROP_STYLE,isActivationLevel ? STYLE_SOLID : InpFiboStyle);
+         ObjectSetInteger(0,line_name,OBJPROP_WIDTH,isActivationLevel ? 2 : InpFiboWidth);
         }
 
       //--- Create or update label
@@ -549,7 +609,7 @@ void ManageSquare(int rates_total, const datetime &time[],
      {
       fibo100Price=leg_start_price;
       fibo0Price=leg_end_price;
-      fibo692Price=leg_start_price+range*(1.0-0.692);
+      fiboActivationPrice=leg_start_price+range*(1.0-InpActivationLevel);
       fibo110Price=leg_start_price+range*(1.0-1.10);
       squareDirection=1;
      }
@@ -557,7 +617,7 @@ void ManageSquare(int rates_total, const datetime &time[],
      {
       fibo100Price=leg_start_price;
       fibo0Price=leg_end_price;
-      fibo692Price=leg_start_price+range*(1.0-0.692);
+      fiboActivationPrice=leg_start_price+range*(1.0-InpActivationLevel);
       fibo110Price=leg_start_price+range*(1.0-1.10);
       squareDirection=-1;
      }
@@ -567,19 +627,19 @@ void ManageSquare(int rates_total, const datetime &time[],
 //--- STATE: NONE or WAITING - Check if square should be activated
    if(squareState==SQUARE_NONE && !squareUsedForCurrentLeg)
      {
-      //--- Check for touch on 69.2% level AFTER leg_end_pos
+      //--- Check for touch on activation level AFTER leg_end_pos
       for(int i=leg_end_pos+1; i<rates_total; i++)
         {
          bool touched=false;
 
          if(is_bullish)
            {
-            if(low[i]<=fibo692Price)
+            if(low[i]<=fiboActivationPrice)
                touched=true;
            }
          else
            {
-            if(high[i]>=fibo692Price)
+            if(high[i]>=fiboActivationPrice)
                touched=true;
            }
 
@@ -597,9 +657,9 @@ void ManageSquare(int rates_total, const datetime &time[],
 
             //--- Calculate entry limit
             if(is_bullish)
-               entryLimitPrice=fibo692Price-InpEntryLimit*_Point;
+               entryLimitPrice=fiboActivationPrice-InpEntryLimit*_Point;
             else
-               entryLimitPrice=fibo692Price+InpEntryLimit*_Point;
+               entryLimitPrice=fiboActivationPrice+InpEntryLimit*_Point;
 
             break;
            }
