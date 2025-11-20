@@ -26,6 +26,9 @@ input int InpColumnSpacing=250; // Horizontal Spacing (Label to Value)
 input color InpPanelColor=clrBlack; // Panel Background Color
 input color InpTextColor=16777215; // Text Color
 input int InpFontSize  =9;   // Font Size
+input bool InpShowBreaks=true; // Show Trend Breaks on Chart
+input int InpArrowSize =2;   // Break Arrow Size (1-5)
+input color InpBreakColor=clrRed; // Break Arrow Color
 
 //--- indicator buffers
 double ZigzagPeakBuffer[];
@@ -51,8 +54,18 @@ struct SExtremum
    bool isPeak; // true = topo, false = fundo
   };
 
+//--- Estrutura para armazenar quebras de tendência
+struct STrendBreak
+  {
+   int position;
+   double price;
+   datetime time;
+   bool isTopBreak; // true = quebra de topo, false = quebra de fundo
+  };
+
 //--- Global variables for panel
 string objPrefix="ZZProgress_";
+string objBreakPrefix="ZZBreak_";
 
 //--- Variáveis globais para detecção de quebra de tendência
 SExtremum g_extremes[10]; // Armazena os últimos 10 extremos
@@ -62,6 +75,10 @@ bool g_trend_break_detected=false;
 int g_trend_break_bar=0;
 string g_trend_status="Aguardando padrão...";
 color g_trend_status_color=clrGray;
+
+//--- Variáveis para armazenar quebras históricas
+STrendBreak g_trend_breaks[];
+int g_breaks_count=0;
 
 //+------------------------------------------------------------------+
 //| Custom indicator initialization function                         |
@@ -98,6 +115,8 @@ void OnDeinit(const int reason)
   {
 //--- Delete all panel objects
    ObjectsDeleteAll(0,objPrefix);
+//--- Delete all break markers
+   ObjectsDeleteAll(0,objBreakPrefix);
    ChartRedraw();
   }
 //+------------------------------------------------------------------+
@@ -230,6 +249,8 @@ void AnalyzeTrendPattern()
         {
          g_trend_break_detected=true;
          g_trend_break_bar=g_extremes[0].position;
+         // Registra a quebra no array de quebras históricas
+         RegisterTrendBreak(g_extremes[0].position, g_extremes[0].price, g_extremes[0].isPeak);
          // Após detectar quebra, reseta para procurar novo padrão
          // Mas mantém o status por um tempo
         }
@@ -239,6 +260,179 @@ void AnalyzeTrendPattern()
          g_trend_status_color=clrLime;
         }
      }
+  }
+//+------------------------------------------------------------------+
+//| Registra uma quebra de tendência                                 |
+//+------------------------------------------------------------------+
+void RegisterTrendBreak(int position, double price, bool isTopBreak)
+  {
+//--- Verifica se já existe uma quebra nesta posição
+   for(int i=0; i<g_breaks_count; i++)
+     {
+      if(g_trend_breaks[i].position==position)
+         return; // Já existe, não adiciona duplicata
+     }
+
+//--- Adiciona nova quebra
+   ArrayResize(g_trend_breaks, g_breaks_count+1);
+   g_trend_breaks[g_breaks_count].position=position;
+   g_trend_breaks[g_breaks_count].price=price;
+   g_trend_breaks[g_breaks_count].time=iTime(_Symbol, _Period, position);
+   g_trend_breaks[g_breaks_count].isTopBreak=isTopBreak;
+   g_breaks_count++;
+  }
+//+------------------------------------------------------------------+
+//| Desenha marcadores de quebra de tendência no gráfico             |
+//+------------------------------------------------------------------+
+void DrawTrendBreakMarkers()
+  {
+   if(!InpShowBreaks)
+      return;
+
+//--- Limpa marcadores antigos
+   ObjectsDeleteAll(0,objBreakPrefix);
+
+//--- Desenha cada quebra detectada
+   for(int i=0; i<g_breaks_count; i++)
+     {
+      string objName=objBreakPrefix+IntegerToString(g_trend_breaks[i].position);
+
+      datetime time=g_trend_breaks[i].time;
+      double price=g_trend_breaks[i].price;
+
+      // Cria seta para baixo indicando quebra
+      ObjectCreate(0, objName, OBJ_ARROW_DOWN, 0, time, price);
+      ObjectSetInteger(0, objName, OBJPROP_COLOR, InpBreakColor);
+      ObjectSetInteger(0, objName, OBJPROP_WIDTH, InpArrowSize);
+      ObjectSetInteger(0, objName, OBJPROP_BACK, false);
+      ObjectSetInteger(0, objName, OBJPROP_SELECTABLE, false);
+      ObjectSetInteger(0, objName, OBJPROP_HIDDEN, true);
+
+      // Adiciona tooltip
+      string tooltip="Quebra de Tendência\n";
+      tooltip+=g_trend_breaks[i].isTopBreak ? "Topo menor que anterior" : "Fundo menor que anterior";
+      tooltip+="\nPreço: "+DoubleToString(price, _Digits);
+      ObjectSetString(0, objName, OBJPROP_TOOLTIP, tooltip);
+     }
+
+   ChartRedraw();
+  }
+//+------------------------------------------------------------------+
+//| Varre histórico completo para detectar quebras passadas          |
+//+------------------------------------------------------------------+
+void ScanHistoricalBreaks(int rates_total)
+  {
+//--- Limpa quebras anteriores
+   ArrayResize(g_trend_breaks, 0);
+   g_breaks_count=0;
+
+//--- Array temporário para armazenar extremos do histórico
+   SExtremum temp_extremes[];
+   int temp_count=0;
+
+//--- Coleta todos os extremos do ZigZag do mais antigo ao mais recente
+   for(int i=0; i<rates_total; i++)
+     {
+      if(ZigzagPeakBuffer[i]!=0 || ZigzagBottomBuffer[i]!=0)
+        {
+         ArrayResize(temp_extremes, temp_count+1);
+
+         if(ZigzagPeakBuffer[i]!=0)
+           {
+            temp_extremes[temp_count].price=ZigzagPeakBuffer[i];
+            temp_extremes[temp_count].position=i;
+            temp_extremes[temp_count].isPeak=true;
+           }
+         else
+           {
+            temp_extremes[temp_count].price=ZigzagBottomBuffer[i];
+            temp_extremes[temp_count].position=i;
+            temp_extremes[temp_count].isPeak=false;
+           }
+
+         temp_count++;
+        }
+     }
+
+//--- Analisa o padrão para cada conjunto de extremos
+   if(temp_count<4)
+      return; // Precisa de pelo menos 4 extremos
+
+   bool in_uptrend=false;
+
+   for(int i=0; i<temp_count-3; i++)
+     {
+      // Verifica padrão de alta nos 3 primeiros extremos
+      bool uptrend_pattern=false;
+
+      // Padrão 1: Fundo -> Topo -> Fundo (Fundo2 > Fundo1)
+      if(!temp_extremes[i].isPeak && temp_extremes[i+1].isPeak && !temp_extremes[i+2].isPeak)
+        {
+         if(temp_extremes[i+2].price>temp_extremes[i].price)
+            uptrend_pattern=true;
+        }
+
+      // Padrão 2: Topo -> Fundo -> Topo (Topo2 > Topo1)
+      if(temp_extremes[i].isPeak && !temp_extremes[i+1].isPeak && temp_extremes[i+2].isPeak)
+        {
+         if(temp_extremes[i+2].price>temp_extremes[i].price)
+            uptrend_pattern=true;
+        }
+
+      if(uptrend_pattern)
+        {
+         in_uptrend=true;
+
+         // Verifica se o 4º extremo quebra a tendência
+         if(i+3<temp_count)
+           {
+            bool break_detected=false;
+
+            // Se o 4º extremo é um topo
+            if(temp_extremes[i+3].isPeak)
+              {
+               // Procura o topo anterior
+               for(int j=i+2; j>=i; j--)
+                 {
+                  if(temp_extremes[j].isPeak)
+                    {
+                     if(temp_extremes[i+3].price<temp_extremes[j].price)
+                       {
+                        break_detected=true;
+                        RegisterTrendBreak(temp_extremes[i+3].position, temp_extremes[i+3].price, true);
+                       }
+                     break;
+                    }
+                 }
+              }
+            // Se o 4º extremo é um fundo
+            else
+              {
+               // Procura o fundo anterior
+               for(int j=i+2; j>=i; j--)
+                 {
+                  if(!temp_extremes[j].isPeak)
+                    {
+                     if(temp_extremes[i+3].price<temp_extremes[j].price)
+                       {
+                        break_detected=true;
+                        RegisterTrendBreak(temp_extremes[i+3].position, temp_extremes[i+3].price, false);
+                       }
+                     break;
+                    }
+                 }
+              }
+
+            if(break_detected)
+              {
+               in_uptrend=false; // Reseta tendência após quebra
+              }
+           }
+        }
+     }
+
+//--- Desenha os marcadores
+   DrawTrendBreakMarkers();
   }
 //+------------------------------------------------------------------+
 //| ZigZag calculation                                               |
@@ -465,6 +659,10 @@ int OnCalculate(const int rates_total,
    if(InpShowPanel)
       UpdatePanel(rates_total, last_high_pos, last_low_pos, last_high, last_low,
                   high, low, extreme_search);
+
+//--- Scan and mark historical trend breaks
+   if(InpShowBreaks)
+      ScanHistoricalBreaks(rates_total);
 
 //--- return value of prev_calculated for next call
    return(rates_total);
