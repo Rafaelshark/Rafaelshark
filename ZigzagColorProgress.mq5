@@ -668,7 +668,21 @@ void ManageSquare(int rates_total, const datetime &time[],
 //--- STATE: ACTIVE - Monitor for breakout, 110% close, or entry limit violation
    if(squareState==SQUARE_ACTIVE)
      {
-      //--- Update base/top price dynamically from activation point
+      //--- Check for close below/above 110% FIRST (before updating base)
+      bool closedPast110=false;
+      if(is_bullish && close[current_bar]<fibo110Price)
+         closedPast110=true;
+      else if(!is_bullish && close[current_bar]>fibo110Price)
+         closedPast110=true;
+
+      if(closedPast110)
+        {
+         squareState=SQUARE_LOCKED_110;
+         squareLockedBasePrice=squareBasePrice; // Freeze current base BEFORE it updates
+         return;
+        }
+
+      //--- Update base/top price dynamically from activation point (only if not locked)
       if(is_bullish)
         {
          for(int i=squareStartBar; i<=current_bar; i++)
@@ -740,20 +754,6 @@ void ManageSquare(int rates_total, const datetime &time[],
             takeProfitPrice=squareBottom-InpTakeProfit*_Point;
             stopLossPrice=squareTop+InpStopLoss*_Point;
            }
-         return;
-        }
-
-      //--- Check for close below/above 110% (lock the square)
-      bool closedPast110=false;
-      if(is_bullish && close[current_bar]<fibo110Price)
-         closedPast110=true;
-      else if(!is_bullish && close[current_bar]>fibo110Price)
-         closedPast110=true;
-
-      if(closedPast110)
-        {
-         squareState=SQUARE_LOCKED_110;
-         squareLockedBasePrice=squareBasePrice; // Freeze current base
          return;
         }
 
