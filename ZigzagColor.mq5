@@ -7,21 +7,30 @@
 #property link      "https://www.mql5.com"
 //--- indicator settings
 #property indicator_chart_window
-#property indicator_buffers 5
-#property indicator_plots   1
+#property indicator_buffers 7
+#property indicator_plots   3
 #property indicator_type1   DRAW_COLOR_ZIGZAG
-#property indicator_color1  clrDodgerBlue,clrRed,clrLime
+#property indicator_color1  clrDodgerBlue,clrRed
+#property indicator_type2   DRAW_ARROW
+#property indicator_color2  clrRed
+#property indicator_width2  3
+#property indicator_type3   DRAW_ARROW
+#property indicator_color3  clrLime
+#property indicator_width3  3
 //--- input parameters
 input int InpDepth     =12;  // Depth
 input int InpDeviation =5;   // Deviation
 input int InpBackstep  =3;   // Back Step
 input int InpLineWidth =2;   // Line Width (1-5)
+input int InpSymbolSize=3;   // Symbol Size (1-5)
 //--- indicator buffers
 double ZigzagPeakBuffer[];
 double ZigzagBottomBuffer[];
+double ColorBuffer[];
+double BreakUpBuffer[];      // Quebra de alta (vermelho)
+double BreakDownBuffer[];    // Quebra de baixa (verde)
 double HighMapBuffer[];
 double LowMapBuffer[];
-double ColorBuffer[];
 
 int ExtRecalc=3; // recounting's depth
 
@@ -48,18 +57,29 @@ void OnInit()
    SetIndexBuffer(0,ZigzagPeakBuffer,INDICATOR_DATA);
    SetIndexBuffer(1,ZigzagBottomBuffer,INDICATOR_DATA);
    SetIndexBuffer(2,ColorBuffer,INDICATOR_COLOR_INDEX);
-   SetIndexBuffer(3,HighMapBuffer,INDICATOR_CALCULATIONS);
-   SetIndexBuffer(4,LowMapBuffer,INDICATOR_CALCULATIONS);
+   SetIndexBuffer(3,BreakUpBuffer,INDICATOR_DATA);
+   SetIndexBuffer(4,BreakDownBuffer,INDICATOR_DATA);
+   SetIndexBuffer(5,HighMapBuffer,INDICATOR_CALCULATIONS);
+   SetIndexBuffer(6,LowMapBuffer,INDICATOR_CALCULATIONS);
 //--- set accuracy
    IndicatorSetInteger(INDICATOR_DIGITS,_Digits);
 //--- set line width
    PlotIndexSetInteger(0,PLOT_LINE_WIDTH,InpLineWidth);
+//--- configurar símbolos de quebra
+   PlotIndexSetInteger(1,PLOT_ARROW,159); // Círculo grande para quebra de alta
+   PlotIndexSetInteger(1,PLOT_LINE_WIDTH,InpSymbolSize);
+   PlotIndexSetInteger(2,PLOT_ARROW,159); // Círculo grande para quebra de baixa
+   PlotIndexSetInteger(2,PLOT_LINE_WIDTH,InpSymbolSize);
 //--- name for DataWindow and indicator subwindow label
    string short_name=StringFormat("ZigZagColor(%d,%d,%d)",InpDepth,InpDeviation,InpBackstep);
    IndicatorSetString(INDICATOR_SHORTNAME,short_name);
    PlotIndexSetString(0,PLOT_LABEL,short_name);
+   PlotIndexSetString(1,PLOT_LABEL,"Quebra Alta");
+   PlotIndexSetString(2,PLOT_LABEL,"Quebra Baixa");
 //--- set an empty value
    PlotIndexSetDouble(0,PLOT_EMPTY_VALUE,0.0);
+   PlotIndexSetDouble(1,PLOT_EMPTY_VALUE,0.0);
+   PlotIndexSetDouble(2,PLOT_EMPTY_VALUE,0.0);
 //--- inicializar arrays de histórico
    ArrayResize(HistoryHighs,100);
    ArrayResize(HistoryLows,100);
@@ -101,11 +121,11 @@ void AddLowToHistory(double low_value,int pos)
 //+------------------------------------------------------------------+
 //| Detecta quebra de tendência                                      |
 //+------------------------------------------------------------------+
-int DetectTrendBreak(double new_value,bool is_high)
+int DetectTrendBreak(double new_value,bool is_high,int shift)
   {
-// 0 = cor normal (azul)
-// 1 = quebra de tendência de alta (vermelho)
-// 2 = quebra de tendência de baixa (verde)
+// 0 = sem quebra
+// 1 = quebra de tendência de alta (símbolo vermelho)
+// 2 = quebra de tendência de baixa (símbolo verde)
 
    if(is_high)
      {
@@ -121,7 +141,8 @@ int DetectTrendBreak(double new_value,bool is_high)
             // Se o novo topo é menor que o anterior = quebra de tendência de alta
             if(new_value<prev_high)
               {
-               return 1; // Vermelho - quebra de alta
+               BreakUpBuffer[shift]=new_value;
+               return 1; // Quebra de alta
               }
            }
          // Verifica se estávamos em tendência de baixa (topos decrescentes)
@@ -130,7 +151,8 @@ int DetectTrendBreak(double new_value,bool is_high)
             // Se o novo topo é maior que o anterior = quebra de tendência de baixa
             if(new_value>prev_high)
               {
-               return 2; // Verde - quebra de baixa
+               BreakDownBuffer[shift]=new_value;
+               return 2; // Quebra de baixa
               }
            }
         }
@@ -149,7 +171,8 @@ int DetectTrendBreak(double new_value,bool is_high)
             // Se o novo fundo é menor que o anterior = quebra de tendência de alta
             if(new_value<prev_low)
               {
-               return 1; // Vermelho - quebra de alta
+               BreakUpBuffer[shift]=new_value;
+               return 1; // Quebra de alta
               }
            }
          // Verifica se estávamos em tendência de baixa (fundos decrescentes)
@@ -158,13 +181,14 @@ int DetectTrendBreak(double new_value,bool is_high)
             // Se o novo fundo é maior que o anterior = quebra de tendência de baixa
             if(new_value>prev_low)
               {
-               return 2; // Verde - quebra de baixa
+               BreakDownBuffer[shift]=new_value;
+               return 2; // Quebra de baixa
               }
            }
         }
      }
 
-   return 0; // Cor normal
+   return 0; // Sem quebra
   }
 //+------------------------------------------------------------------+
 //| ZigZag calculation                                               |
@@ -196,6 +220,8 @@ int OnCalculate(const int rates_total,
       ArrayInitialize(HighMapBuffer,0.0);
       ArrayInitialize(LowMapBuffer,0.0);
       ArrayInitialize(ColorBuffer,0);
+      ArrayInitialize(BreakUpBuffer,0.0);
+      ArrayInitialize(BreakDownBuffer,0.0);
       //--- resetar histórico
       ArrayInitialize(HistoryHighs,0.0);
       ArrayInitialize(HistoryLows,0.0);
@@ -255,6 +281,8 @@ int OnCalculate(const int rates_total,
          ZigzagBottomBuffer[i]=0.0;
          LowMapBuffer[i]      =0.0;
          HighMapBuffer[i]     =0.0;
+         BreakUpBuffer[i]     =0.0;
+         BreakDownBuffer[i]   =0.0;
         }
      }
 //--- searching for high and low extremes
@@ -336,8 +364,8 @@ int OnCalculate(const int rates_total,
                   extreme_search=-1;
                   ZigzagPeakBuffer[shift]=last_high;
 
-                  int color_idx=DetectTrendBreak(last_high,true);
-                  ColorBuffer[shift]=color_idx;
+                  DetectTrendBreak(last_high,true,shift);
+                  ColorBuffer[shift]=0;
                   AddHighToHistory(last_high,shift);
 
                   res=1;
@@ -349,8 +377,8 @@ int OnCalculate(const int rates_total,
                   extreme_search=1;
                   ZigzagBottomBuffer[shift]=last_low;
 
-                  int color_idx=DetectTrendBreak(last_low,false);
-                  ColorBuffer[shift]=color_idx;
+                  DetectTrendBreak(last_low,false,shift);
+                  ColorBuffer[shift]=1;
                   AddLowToHistory(last_low,shift);
 
                   res=1;
@@ -362,6 +390,8 @@ int OnCalculate(const int rates_total,
                HighMapBuffer[shift]==0.0)
               {
                ZigzagBottomBuffer[last_low_pos]=0.0;
+               BreakUpBuffer[last_low_pos]=0.0;
+               BreakDownBuffer[last_low_pos]=0.0;
                last_low_pos=shift;
                last_low=LowMapBuffer[shift];
                ZigzagBottomBuffer[shift]=last_low;
@@ -369,8 +399,8 @@ int OnCalculate(const int rates_total,
                // Remover o último fundo do histórico e adicionar o novo
                if(LowCount>0)
                   LowCount--;
-               int color_idx=DetectTrendBreak(last_low,false);
-               ColorBuffer[shift]=color_idx;
+               DetectTrendBreak(last_low,false,shift);
+               ColorBuffer[shift]=1;
                AddLowToHistory(last_low,shift);
 
                res=1;
@@ -381,8 +411,8 @@ int OnCalculate(const int rates_total,
                last_high_pos=shift;
                ZigzagPeakBuffer[shift]=last_high;
 
-               int color_idx=DetectTrendBreak(last_high,true);
-               ColorBuffer[shift]=color_idx;
+               DetectTrendBreak(last_high,true,shift);
+               ColorBuffer[shift]=0;
                AddHighToHistory(last_high,shift);
 
                extreme_search=Bottom;
@@ -395,6 +425,8 @@ int OnCalculate(const int rates_total,
                LowMapBuffer[shift]==0.0)
               {
                ZigzagPeakBuffer[last_high_pos]=0.0;
+               BreakUpBuffer[last_high_pos]=0.0;
+               BreakDownBuffer[last_high_pos]=0.0;
                last_high_pos=shift;
                last_high=HighMapBuffer[shift];
                ZigzagPeakBuffer[shift]=last_high;
@@ -402,8 +434,8 @@ int OnCalculate(const int rates_total,
                // Remover o último topo do histórico e adicionar o novo
                if(HighCount>0)
                   HighCount--;
-               int color_idx=DetectTrendBreak(last_high,true);
-               ColorBuffer[shift]=color_idx;
+               DetectTrendBreak(last_high,true,shift);
+               ColorBuffer[shift]=0;
                AddHighToHistory(last_high,shift);
               }
             if(LowMapBuffer[shift]!=0.0 && HighMapBuffer[shift]==0.0)
@@ -412,8 +444,8 @@ int OnCalculate(const int rates_total,
                last_low_pos=shift;
                ZigzagBottomBuffer[shift]=last_low;
 
-               int color_idx=DetectTrendBreak(last_low,false);
-               ColorBuffer[shift]=color_idx;
+               DetectTrendBreak(last_low,false,shift);
+               ColorBuffer[shift]=1;
                AddLowToHistory(last_low,shift);
 
                extreme_search=Peak;
