@@ -682,10 +682,13 @@ bool FindLastCompletedLeg(int rates_total,
                           double &leg_start_price, double &leg_end_price,
                           int &leg_color)
   {
-//--- Para EA: sempre usar perna atual (LegsBack=0)
-//--- Precisamos de 3 extremos: positions[0]=mais recente, positions[1]=anterior, positions[2]=2 atrás
-//--- Perna atual = entre positions[2] (início) e positions[1] (fim)
-   int required_extremes=3;
+//--- Para EA: usar perna CONFIRMADA (sem repintagem)
+//--- Precisamos de 4 extremos para garantir que a perna está confirmada:
+//--- positions[0]=mais recente (não confirmado)
+//--- positions[1]=anterior (confirmado por positions[0])
+//--- positions[2]=início da perna confirmada
+//--- positions[3]=fim da perna confirmada (totalmente estável)
+   int required_extremes=4;
    int extremes_found=0;
 
    int positions[];
@@ -731,9 +734,9 @@ bool FindLastCompletedLeg(int rates_total,
       return false;
      }
 
-//--- Perna atual: índices fixos para LegsBack=0
-   int start_idx=2; // Início da perna (extremo mais antigo)
-   int end_idx=1;   // Fim da perna (extremo mais recente)
+//--- Perna confirmada: usar extremos estáveis que não vão repintar
+   int start_idx=3; // Início da perna confirmada (extremo totalmente estável)
+   int end_idx=2;   // Fim da perna confirmada (extremo estável)
 
    if(start_idx>=extremes_found || end_idx>=extremes_found)
       return false;
