@@ -80,6 +80,7 @@ enum EnSearchMode
 string objPrefix="ZZProgress_EA_";
 string fiboPrefix="ZZFibo_EA_";
 string squarePrefix="ZZSquare_EA_";
+string zigzagPrefix="ZZLine_EA_";
 
 //--- Fibonacci levels
 double fiboLevels[];
@@ -144,12 +145,12 @@ int OnInit()
    trade.SetTypeFilling(ORDER_FILLING_FOK);
    trade.SetAsyncMode(false);
 
-//--- Initialize arrays as indicators
-   ArraySetAsSeries(ZigzagPeakBuffer,true);
-   ArraySetAsSeries(ZigzagBottomBuffer,true);
-   ArraySetAsSeries(HighMapBuffer,true);
-   ArraySetAsSeries(LowMapBuffer,true);
-   ArraySetAsSeries(ColorBuffer,true);
+//--- Initialize arrays (NOT as series, matching original indicator)
+   ArraySetAsSeries(ZigzagPeakBuffer,false);
+   ArraySetAsSeries(ZigzagBottomBuffer,false);
+   ArraySetAsSeries(HighMapBuffer,false);
+   ArraySetAsSeries(LowMapBuffer,false);
+   ArraySetAsSeries(ColorBuffer,false);
 
 //--- Initialize Fibonacci levels
    InitializeFibonacciLevels();
@@ -176,6 +177,7 @@ void OnDeinit(const int reason)
    ObjectsDeleteAll(0,objPrefix);
    ObjectsDeleteAll(0,fiboPrefix);
    ObjectsDeleteAll(0,squarePrefix);
+   ObjectsDeleteAll(0,zigzagPrefix);
    ChartRedraw();
    Print("ZigzagColorProgress EA Desinicializado");
   }
@@ -192,14 +194,14 @@ void OnTick()
    if(copied<100)
       return;
 
-//--- Get price arrays
+//--- Get price arrays (NOT as series, matching original indicator)
    double high[], low[], open[], close[];
    datetime time[];
-   ArraySetAsSeries(high,true);
-   ArraySetAsSeries(low,true);
-   ArraySetAsSeries(open,true);
-   ArraySetAsSeries(close,true);
-   ArraySetAsSeries(time,true);
+   ArraySetAsSeries(high,false);
+   ArraySetAsSeries(low,false);
+   ArraySetAsSeries(open,false);
+   ArraySetAsSeries(close,false);
+   ArraySetAsSeries(time,false);
 
    int copiedH=CopyHigh(_Symbol,_Period,0,500,high);
    int copiedL=CopyLow(_Symbol,_Period,0,500,low);
@@ -429,6 +431,9 @@ void CalculateZigZag(const int rates_total,
         }
      }
 
+//--- Draw ZigZag Lines
+   DrawZigZagLines(rates_total, time);
+
 //--- Draw Fibonacci and manage square
    int leg_start_pos, leg_end_pos;
    double leg_start_price, leg_end_price;
@@ -556,6 +561,81 @@ void ManageTrading(int rates_total, const datetime &time[],
          Print("ERRO ao abrir ordem: ", trade.ResultRetcode());
          Print("Descrição: ", trade.ResultRetcodeDescription());
         }
+     }
+  }
+
+//+------------------------------------------------------------------+
+//| Draw ZigZag Lines                                                 |
+//+------------------------------------------------------------------+
+void DrawZigZagLines(int rates_total, const datetime &time[])
+  {
+//--- Find all ZigZag extremes and connect them with lines
+   int extremes_count=0;
+   int positions[100];
+   double prices[100];
+   int colors[100];
+
+//--- Collect all extremes
+   for(int i=0; i<rates_total && extremes_count<100; i++)
+     {
+      if(ZigzagPeakBuffer[i]!=0.0)
+        {
+         positions[extremes_count]=i;
+         prices[extremes_count]=ZigzagPeakBuffer[i];
+         colors[extremes_count]=0; // Blue
+         extremes_count++;
+        }
+      else if(ZigzagBottomBuffer[i]!=0.0)
+        {
+         positions[extremes_count]=i;
+         prices[extremes_count]=ZigzagBottomBuffer[i];
+         colors[extremes_count]=1; // Red
+         extremes_count++;
+        }
+     }
+
+//--- Draw lines between consecutive extremes
+   for(int i=0; i<extremes_count-1; i++)
+     {
+      string line_name=zigzagPrefix+IntegerToString(i);
+
+      datetime time1=time[positions[i]];
+      double price1=prices[i];
+      datetime time2=time[positions[i+1]];
+      double price2=prices[i+1];
+
+      //--- Determine line color based on direction
+      color line_color=clrDodgerBlue;
+      if(colors[i]==1 && colors[i+1]==0)
+         line_color=clrDodgerBlue; // Bullish (bottom to peak)
+      else if(colors[i]==0 && colors[i+1]==1)
+         line_color=clrRed; // Bearish (peak to bottom)
+
+      if(ObjectFind(0,line_name)<0)
+        {
+         ObjectCreate(0,line_name,OBJ_TREND,0,time1,price1,time2,price2);
+         ObjectSetInteger(0,line_name,OBJPROP_COLOR,line_color);
+         ObjectSetInteger(0,line_name,OBJPROP_STYLE,STYLE_SOLID);
+         ObjectSetInteger(0,line_name,OBJPROP_WIDTH,InpLineWidth);
+         ObjectSetInteger(0,line_name,OBJPROP_RAY_RIGHT,false);
+         ObjectSetInteger(0,line_name,OBJPROP_RAY_LEFT,false);
+         ObjectSetInteger(0,line_name,OBJPROP_BACK,true);
+         ObjectSetInteger(0,line_name,OBJPROP_SELECTABLE,false);
+        }
+      else
+        {
+         ObjectMove(0,line_name,0,time1,price1);
+         ObjectMove(0,line_name,1,time2,price2);
+         ObjectSetInteger(0,line_name,OBJPROP_COLOR,line_color);
+        }
+     }
+
+//--- Delete old lines that are no longer needed
+   for(int i=extremes_count; i<100; i++)
+     {
+      string line_name=zigzagPrefix+IntegerToString(i);
+      if(ObjectFind(0,line_name)>=0)
+         ObjectDelete(0,line_name);
      }
   }
 
