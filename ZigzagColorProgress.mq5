@@ -106,6 +106,7 @@ double takeActivationClosePrice=0; // Close price of the candle that activated t
 bool hitTakeFirst=false; // Indicates if take was hit first (for green color)
 bool hitStopFirst=false; // Indicates if stop was hit first (for red color)
 int breakoutBar=-1; // Bar where breakout occurred
+bool activationTouched=false; // Track if price touched activation level for current leg
 
 //+------------------------------------------------------------------+
 //| Custom indicator initialization function                         |
@@ -666,6 +667,7 @@ void ManageSquare(int rates_total, const datetime &time[],
       hitTakeFirst=false;
       hitStopFirst=false;
       breakoutBar=-1;
+      activationTouched=false;
      }
 
    currentLegEndPos=leg_end_pos;
@@ -696,8 +698,38 @@ void ManageSquare(int rates_total, const datetime &time[],
 
    int current_bar=rates_total-1;
 
+//--- Check if price has touched activation level for current leg
+   if(!activationTouched)
+     {
+      for(int i=leg_end_pos+1; i<rates_total; i++)
+        {
+         bool touched=false;
+
+         if(is_bullish)
+           {
+            if(low[i]<=fiboActivationPrice)
+               touched=true;
+           }
+         else
+           {
+            if(high[i]>=fiboActivationPrice)
+               touched=true;
+           }
+
+         if(touched)
+           {
+            activationTouched=true;
+            Print("═══ ACTIVATION LEVEL TOUCHED ═══");
+            Print("Leg end pos: ", leg_end_pos);
+            Print("Activation price: ", DoubleToString(fiboActivationPrice, _Digits));
+            break;
+           }
+        }
+     }
+
 //--- STATE: NONE - Check if square should be activated
-   if(squareState==SQUARE_NONE && !squareUsedForCurrentLeg)
+//--- Only activate if activation was touched AND not used for current leg
+   if(squareState==SQUARE_NONE && activationTouched && !squareUsedForCurrentLeg)
      {
       //--- Check for touch on activation level AFTER leg_end_pos
       for(int i=leg_end_pos+1; i<rates_total; i++)
