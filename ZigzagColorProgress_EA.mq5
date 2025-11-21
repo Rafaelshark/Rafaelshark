@@ -110,6 +110,8 @@ double entryLimitPrice=0;
 double takeProfitPrice=0;
 double stopLossPrice=0;
 int currentLegEndPos=0;
+double currentLegStartPrice=0;  // Preço do início da perna atual
+double currentLegEndPrice=0;    // Preço do fim da perna atual
 bool squareUsedForCurrentLeg=false;
 bool squareLockedAt110=false;
 int last110CheckBar=-1;
@@ -492,6 +494,8 @@ void CalculateZigZag(const int rates_total,
      {
       //--- Limpar todas as variáveis de estado
       currentLegEndPos=0;
+      currentLegStartPrice=0;
+      currentLegEndPrice=0;
       squareState=SQUARE_NONE;
       squareUsedForCurrentLeg=false;
       squareLockedAt110=false;
@@ -935,8 +939,10 @@ void ManageSquare(int rates_total, const datetime &time[],
                   double leg_start_price, double leg_end_price,
                   int leg_color)
   {
-//--- Check if leg changed
-   bool legChanged=(currentLegEndPos!=0 && currentLegEndPos!=leg_end_pos);
+//--- Check if leg changed (using PRICES, not positions, to avoid false positives from array index shifts)
+   bool legChanged=(currentLegEndPrice!=0 &&
+                   (MathAbs(currentLegEndPrice-leg_end_price)>0.01 ||
+                    MathAbs(currentLegStartPrice-leg_start_price)>0.01));
 
    if(legChanged)
      {
@@ -970,6 +976,8 @@ void ManageSquare(int rates_total, const datetime &time[],
      }
 
    currentLegEndPos=leg_end_pos;
+   currentLegStartPrice=leg_start_price;
+   currentLegEndPrice=leg_end_price;
 
    double range=leg_end_price-leg_start_price;
    bool is_bullish=(ZigzagPeakBuffer[leg_start_pos]!=0.0) ? false : true;
@@ -1053,7 +1061,9 @@ void ManageSquare(int rates_total, const datetime &time[],
       squareStartBar=activationTouchBar;
       squareUsedForCurrentLeg=true;
       squareLockedAt110=false;
-      last110CheckBar=activationTouchBar;
+      // CRÍTICO: last110CheckBar deve ser a barra ATUAL-1, não activationTouchBar
+      // Isso evita verificar 110% em barras históricas onde já foi tocado
+      last110CheckBar=current_bar-1;
 
       if(is_bullish)
          squareBasePrice=low[activationTouchBar];
@@ -1071,6 +1081,8 @@ void ManageSquare(int rates_total, const datetime &time[],
       Print("Leg start: ", leg_start_pos, " | Leg end: ", leg_end_pos);
       Print("Start price: ", DoubleToString(leg_start_price, _Digits));
       Print("End price: ", DoubleToString(leg_end_price, _Digits));
+      Print("Activation touch bar: ", activationTouchBar, " | Current bar: ", current_bar);
+      Print("last110CheckBar: ", last110CheckBar, " (verificação começa da próxima barra)");
      }
 
 //--- STATE: ACTIVE - Monitor for breakout or 110% breach
