@@ -49,7 +49,6 @@ input bool InpShowFiboLabels=true; // Mostrar Rótulos de Fibonacci
 
 //--- Parâmetros do Quadrado
 input bool InpShowSquare=true; // Mostrar Quadrado
-input int InpLegsBack=0; // Pernas para Trás (0=atual, 1=1 perna atrás, 2=2 pernas atrás)
 input ENUM_LEG_TYPE InpLegType=LEG_AMBAS; // Tipo de Perna
 input double InpActivationLevel=0.692; // Nível de Ativação (0.0 a 1.10)
 input int InpSquareHeight=400; // Altura do Quadrado (pontos)
@@ -441,24 +440,26 @@ void CalculateZigZag(const int rates_total,
    bool has_valid_leg=FindLastCompletedLeg(rates_total, leg_start_pos, leg_end_pos,
                                             leg_start_price, leg_end_price, leg_color);
 
-   bool useLockedFibo=(squareState!=SQUARE_NONE && lockedLegStartPos>=0);
+//--- Se o quadrado está ativo/travado, usar valores travados da fibo
+//--- Isso garante que a fibo não mude enquanto o quadrado está em operação
+   bool useLockedFibo=(squareState!=SQUARE_NONE && squareState!=SQUARE_WAITING && lockedLegStartPos>=0);
 
    if(useLockedFibo)
      {
+      //--- Usar valores travados quando o quadrado foi ativado
       leg_start_pos=lockedLegStartPos;
       leg_end_pos=lockedLegEndPos;
       leg_start_price=lockedLegStartPrice;
       leg_end_price=lockedLegEndPrice;
       leg_color=lockedLegColor;
       has_valid_leg=true;
-     }
-   else if(has_valid_leg && squareState==SQUARE_NONE)
-     {
-      lockedLegStartPos=leg_start_pos;
-      lockedLegEndPos=leg_end_pos;
-      lockedLegStartPrice=leg_start_price;
-      lockedLegEndPrice=leg_end_price;
-      lockedLegColor=leg_color;
+
+      static datetime lastPrintTime=0;
+      if(TimeCurrent()-lastPrintTime>60) // Print a cada 60 segundos
+        {
+         Print("📌 Usando FIBONACCI TRAVADA | Estado: ", EnumToString(squareState));
+         lastPrintTime=TimeCurrent();
+        }
      }
 
    if(InpShowFibo && has_valid_leg)
@@ -647,7 +648,10 @@ bool FindLastCompletedLeg(int rates_total,
                           double &leg_start_price, double &leg_end_price,
                           int &leg_color)
   {
-   int required_extremes=3+InpLegsBack;
+//--- Para EA: sempre usar perna atual (LegsBack=0)
+//--- Precisamos de 3 extremos: positions[0]=mais recente, positions[1]=anterior, positions[2]=2 atrás
+//--- Perna atual = entre positions[2] (início) e positions[1] (fim)
+   int required_extremes=3;
    int extremes_found=0;
 
    int positions[];
@@ -682,8 +686,9 @@ bool FindLastCompletedLeg(int rates_total,
    if(extremes_found<required_extremes)
       return false;
 
-   int start_idx=2+InpLegsBack;
-   int end_idx=1+InpLegsBack;
+//--- Perna atual: índices fixos para LegsBack=0
+   int start_idx=2; // Início da perna (extremo mais antigo)
+   int end_idx=1;   // Fim da perna (extremo mais recente)
 
    if(start_idx>=extremes_found || end_idx>=extremes_found)
       return false;
@@ -906,6 +911,14 @@ void ManageSquare(int rates_total, const datetime &time[],
       lockedLegStartPrice=0;
       lockedLegEndPrice=0;
       lockedLegColor=0;
+
+      if(previousState!=SQUARE_NONE)
+        {
+         Print("═══ FIBONACCI DESTRAVADA ═══");
+         Print("Motivo: Nova perna detectada - Reset completo");
+         Print("Perna anterior end pos: ", currentLegEndPos);
+         Print("Nova perna end pos: ", leg_end_pos);
+        }
      }
 
    currentLegEndPos=leg_end_pos;
@@ -1004,6 +1017,12 @@ void ManageSquare(int rates_total, const datetime &time[],
       lockedLegStartPrice=leg_start_price;
       lockedLegEndPrice=leg_end_price;
       lockedLegColor=leg_color;
+
+      Print("═══ FIBONACCI TRAVADA ═══");
+      Print("Quadrado ativado - Fibo travada nos valores atuais da perna");
+      Print("Leg start: ", leg_start_pos, " | Leg end: ", leg_end_pos);
+      Print("Start price: ", DoubleToString(leg_start_price, _Digits));
+      Print("End price: ", DoubleToString(leg_end_price, _Digits));
      }
 
 //--- STATE: ACTIVE - Monitor for breakout or 110% breach
@@ -1110,6 +1129,9 @@ void ManageSquare(int rates_total, const datetime &time[],
          lockedLegStartPrice=0;
          lockedLegEndPrice=0;
          lockedLegColor=0;
+
+         Print("═══ FIBONACCI DESTRAVADA ═══");
+         Print("Motivo: 110% atingido - Quadrado travado");
         }
       else if(brokeSquare)
         {
@@ -1221,6 +1243,9 @@ void ManageSquare(int rates_total, const datetime &time[],
                   lockedLegStartPrice=0;
                   lockedLegEndPrice=0;
                   lockedLegColor=0;
+
+                  Print("═══ FIBONACCI DESTRAVADA ═══");
+                  Print("Motivo: Limite de entrada violado - Quadrado travado");
                  }
               }
             else
@@ -1302,6 +1327,9 @@ void ManageSquare(int rates_total, const datetime &time[],
          lockedLegStartPrice=0;
          lockedLegEndPrice=0;
          lockedLegColor=0;
+
+         Print("═══ FIBONACCI DESTRAVADA ═══");
+         Print("Motivo: Take Profit atingido ✓");
         }
       else if(hitStop && !hitTake)
         {
@@ -1313,6 +1341,9 @@ void ManageSquare(int rates_total, const datetime &time[],
          lockedLegStartPrice=0;
          lockedLegEndPrice=0;
          lockedLegColor=0;
+
+         Print("═══ FIBONACCI DESTRAVADA ═══");
+         Print("Motivo: Stop Loss atingido ✗");
         }
 
       DrawSquare(time, current_bar, is_bullish);
