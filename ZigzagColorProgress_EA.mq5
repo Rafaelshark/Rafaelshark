@@ -154,6 +154,12 @@ int OnInit()
 //--- Initialize Fibonacci levels
    InitializeFibonacciLevels();
 
+//--- Clean all objects from previous instances
+   ObjectsDeleteAll(0,objPrefix);
+   ObjectsDeleteAll(0,fiboPrefix);
+   ObjectsDeleteAll(0,squarePrefix);
+   ObjectsDeleteAll(0,zigzagPrefix);
+
 //--- Create panel
    if(InpShowPanel)
       CreatePanel();
@@ -163,6 +169,7 @@ int OnInit()
    Print("Magic Number: ", InpMagicNumber);
    Print("Take Profit: ", InpTakeProfit, " pontos");
    Print("Stop Loss: ", InpStopLoss, " pontos");
+   Print("Aguardando dados suficientes do ZigZag...");
 
    return(INIT_SUCCEEDED);
   }
@@ -466,7 +473,10 @@ void CalculateZigZag(const int rates_total,
       DrawFibonacciRetracement(rates_total, time, leg_start_pos, leg_end_pos,
                                leg_start_price, leg_end_price, leg_color);
    else if(!has_valid_leg && !useLockedFibo)
+     {
+      //--- Limpar todos os objetos de Fibonacci incluindo linha vertical azul
       ObjectsDeleteAll(0,fiboPrefix);
+     }
 
    if(InpShowSquare && has_valid_leg)
       ManageSquare(rates_total, time, high, low, close,
@@ -475,6 +485,30 @@ void CalculateZigZag(const int rates_total,
      {
       squareState=SQUARE_NONE;
       ObjectsDeleteAll(0,squarePrefix);
+     }
+
+//--- Se não há perna válida e não está usando fibo travada, resetar estado
+   if(!has_valid_leg && !useLockedFibo)
+     {
+      //--- Limpar todas as variáveis de estado
+      currentLegEndPos=0;
+      squareState=SQUARE_NONE;
+      squareUsedForCurrentLeg=false;
+      squareLockedAt110=false;
+      last110CheckBar=-1;
+      takeActivated=false;
+      takeActivationClosePrice=0;
+      hitTakeFirst=false;
+      hitStopFirst=false;
+      breakoutBar=-1;
+      activationTouched=false;
+      breakoutDetectedAtBar=-1;
+      activationTouchBar=-1;
+      lockedLegStartPos=-1;
+      lockedLegEndPos=-1;
+      lockedLegStartPrice=0;
+      lockedLegEndPrice=0;
+      lockedLegColor=0;
      }
   }
 
@@ -684,7 +718,18 @@ bool FindLastCompletedLeg(int rates_total,
      }
 
    if(extremes_found<required_extremes)
+     {
+      //--- Debug apenas na primeira vez
+      static bool first_warning=true;
+      if(first_warning)
+        {
+         Print("⚠️ Aguardando extremos suficientes do ZigZag...");
+         Print("   Encontrados: ", extremes_found, " / Necessários: ", required_extremes);
+         Print("   O EA iniciará quando houver dados suficientes.");
+         first_warning=false;
+        }
       return false;
+     }
 
 //--- Perna atual: índices fixos para LegsBack=0
    int start_idx=2; // Início da perna (extremo mais antigo)
