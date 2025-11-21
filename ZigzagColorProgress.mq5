@@ -938,6 +938,14 @@ void ManageSquare(int rates_total, const datetime &time[],
                entryLimitPrice=squareTop+InpEntryLimit*_Point;
             else
                entryLimitPrice=squareBottom-InpEntryLimit*_Point;
+
+            Print("═══ BREAKOUT_WAITING_TAKE ACTIVATED ═══");
+            Print("Direction: ", is_bullish ? "BULLISH" : "BEARISH");
+            Print("Square Top: ", DoubleToString(squareTop, _Digits));
+            Print("Square Bottom: ", DoubleToString(squareBottom, _Digits));
+            Print("Entry Price: ", DoubleToString(entryPrice, _Digits));
+            Print("Stop Loss: ", DoubleToString(stopLossPrice, _Digits));
+            Print("Entry Limit: ", DoubleToString(entryLimitPrice, _Digits));
            }
          else
            {
@@ -1033,6 +1041,8 @@ void ManageSquare(int rates_total, const datetime &time[],
         }
 
       //--- Draw square, entry limit, and stop loss
+      Print("═══ DRAWING in BREAKOUT_WAITING_TAKE ═══");
+      Print("Calling DrawSquare and DrawStopLoss");
       DrawSquare(time, current_bar, is_bullish);
       DrawStopLoss(time, current_bar, is_bullish);
      }
@@ -1074,6 +1084,8 @@ void ManageSquare(int rates_total, const datetime &time[],
         }
 
       //--- Draw square, stop loss, and take profit
+      Print("═══ DRAWING in TAKE_ACTIVE ═══");
+      Print("Calling DrawSquare, DrawStopLoss, and DrawTakeProfit");
       DrawSquare(time, current_bar, is_bullish);
       DrawStopLoss(time, current_bar, is_bullish);
       DrawTakeProfit(time, current_bar, is_bullish);
@@ -1203,6 +1215,10 @@ void DrawSquare(const datetime &time[], int current_bar, bool is_bullish)
 //+------------------------------------------------------------------+
 void DrawStopLoss(const datetime &time[], int current_bar, bool is_bullish)
   {
+   Print("DrawStopLoss called - stopLossPrice: ", DoubleToString(stopLossPrice, _Digits));
+   Print("squareStartTime: ", TimeToString(squareStartTime));
+   Print("squareStartBar: ", squareStartBar);
+
 //--- Determine color
    color lineColor=InpSquareColor;
    if(hitTakeFirst)
