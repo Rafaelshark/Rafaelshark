@@ -475,6 +475,13 @@ bool FindLastCompletedLeg(int rates_total,
    bool is_bullish=(start_color==1 && end_color==0); // Bottom to Peak
    bool is_bearish=(start_color==0 && end_color==1); // Peak to Bottom
 
+//--- Validation: ensure we have a valid leg pattern
+   if(!is_bullish && !is_bearish)
+     {
+      Print("⚠️ ERRO - Perna inválida detectada: start_color=", start_color, ", end_color=", end_color);
+      return false;
+     }
+
 //--- Apply leg type filter
    if(InpLegType==0) // Bullish Only
      {
@@ -484,7 +491,8 @@ bool FindLastCompletedLeg(int rates_total,
          datetime current_time=TimeCurrent();
          if(current_time!=last_warning_time)
            {
-            Print("🔵 PERNA DE BAIXA IGNORADA - Parâmetro configurado para apenas pernadas de alta (InpLegType=0)");
+            Print("🔵 PERNA BEARISH IGNORADA - InpLegType=0 (apenas alta)");
+            Print("   Perna detectada: Bearish (", DoubleToString(leg_start_price,_Digits), " → ", DoubleToString(leg_end_price,_Digits), ")");
             last_warning_time=current_time;
            }
          return false;
@@ -498,7 +506,8 @@ bool FindLastCompletedLeg(int rates_total,
          datetime current_time=TimeCurrent();
          if(current_time!=last_warning_time)
            {
-            Print("🔴 PERNA DE ALTA IGNORADA - Parâmetro configurado para apenas pernadas de baixa (InpLegType=1)");
+            Print("🔴 PERNA BULLISH IGNORADA - InpLegType=1 (apenas baixa)");
+            Print("   Perna detectada: Bullish (", DoubleToString(leg_start_price,_Digits), " → ", DoubleToString(leg_end_price,_Digits), ")");
             last_warning_time=current_time;
            }
          return false;
@@ -506,24 +515,24 @@ bool FindLastCompletedLeg(int rates_total,
      }
    // InpLegType==2: Both - no filter needed
 
-//--- Set leg_color based on end point (for backward compatibility)
-   leg_color=end_color;
-
-//--- Validation: ensure we have a valid leg
-   if(!is_bullish && !is_bearish)
-     {
-      Print("⚠️ ERRO - Perna inválida detectada: start_color=", start_color, ", end_color=", end_color);
-      return false;
-     }
+//--- Set leg_color based on type
+   if(is_bullish)
+      leg_color=0; // Bullish = Blue
+   else
+      leg_color=1; // Bearish = Red
 
 //--- Debug info
    static int last_logged_end_pos=-1;
    if(last_logged_end_pos!=leg_end_pos)
      {
       string leg_type_str=is_bullish?"🔵 ALTA (Bullish)":"🔴 BAIXA (Bearish)";
-      Print("✅ PERNA VÁLIDA ENCONTRADA - Tipo: ", leg_type_str,
-            " | Início: ", leg_start_price, " | Fim: ", leg_end_price,
-            " | InpLegType=", InpLegType);
+      string direction_info=is_bullish?"100% na BASE, 0% no TOPO":"100% no TOPO, 0% na BASE";
+      Print("✅ PERNA VÁLIDA ENCONTRADA");
+      Print("   Tipo: ", leg_type_str, " | ", direction_info);
+      Print("   Início: ", DoubleToString(leg_start_price,_Digits), " (bar ", leg_start_pos, ")");
+      Print("   Fim: ", DoubleToString(leg_end_price,_Digits), " (bar ", leg_end_pos, ")");
+      Print("   InpLegType=", InpLegType, " | Filtro: ",
+            InpLegType==0?"Apenas Alta":InpLegType==1?"Apenas Baixa":"Ambas");
       last_logged_end_pos=leg_end_pos;
      }
 
