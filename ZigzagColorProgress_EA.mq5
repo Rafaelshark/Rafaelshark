@@ -988,7 +988,7 @@ void ManageSquare(int rates_total, const datetime &time[],
       squareDirection=-1;
      }
 
-   int current_bar=0;
+   int current_bar=rates_total-1; // Última barra (arrays não são as_series)
 
 //--- Detect activation touch
    if(!activationTouched)
@@ -1081,6 +1081,19 @@ void ManageSquare(int rates_total, const datetime &time[],
       int endCheckBar=current_bar-1;
       if(rates_total>current_bar+1)
          endCheckBar=current_bar;
+
+      //--- Debug: Log apenas na primeira execução
+      static bool first_active_log=true;
+      if(first_active_log)
+        {
+         Print("🔍 DEBUG ACTIVE STATE:");
+         Print("   current_bar: ", current_bar);
+         Print("   rates_total: ", rates_total);
+         Print("   startCheckBar: ", startCheckBar);
+         Print("   endCheckBar: ", endCheckBar);
+         Print("   Loop irá executar: ", startCheckBar<=endCheckBar ? "SIM" : "NÃO");
+         first_active_log=false;
+        }
 
       for(int i=startCheckBar; i<=endCheckBar; i++)
         {
@@ -1791,7 +1804,7 @@ void UpdatePanel(int rates_total, int last_high_pos, int last_low_pos,
    string status="Procurando...";
    color status_color=clrYellow;
 
-   int current_bar=0;
+   int current_bar=rates_total-1; // Última barra (arrays não são as_series)
 
    if(extreme_search==Peak)
      {
